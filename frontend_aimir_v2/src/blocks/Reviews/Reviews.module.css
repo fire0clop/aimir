@@ -1,0 +1,577 @@
+/* ====== СЕКЦИЯ / ФОН (как в Benefits) ====== */
+.section {
+    position: relative;
+    padding: 120px 0;
+    overflow: hidden;
+    background: #1a2948; /* глубокий синий */
+    color: #e5e7eb;
+}
+
+/* большое центральное свечение */
+.bgGlow {
+    position: absolute;
+    left: 50%;
+    top: 40%;
+    width: 900px;
+    height: 900px;
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    background: radial-gradient(
+            circle,
+            rgba(34, 211, 238, 0.22) 0%,
+            rgba(14, 165, 233, 0.12) 35%,
+            rgba(3, 7, 18, 0) 70%
+    );
+    filter: blur(60px);
+    z-index: -1;
+}
+
+/* фоновые круги по краям */
+.bgDecor {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.circleOne,
+.circleTwo {
+    position: absolute;
+    border-radius: 999px;
+    filter: blur(40px);
+}
+
+.circleOne {
+    top: 18%;
+    left: 20%;
+    width: 260px;
+    height: 260px;
+    background: rgba(56, 189, 248, 0.18);
+}
+
+.circleTwo {
+    bottom: 18%;
+    right: 18%;
+    width: 260px;
+    height: 260px;
+    background: rgba(56, 189, 248, 0.1);
+}
+
+/* контейнер */
+.wrap {
+    position: relative;
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 24px;
+}
+
+/* ====== ХЕДЕР ====== */
+.head {
+    position: relative;
+    margin-bottom: 40px;
+}
+
+.headMain {
+    text-align: center;
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 24px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    color: #12D0F5;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+}
+
+.h2 {
+    font-size: 40px;
+    font-weight: 800;
+    margin: 0 0 8px;
+    color: #f9fafb;
+}
+
+.h2Accent {
+    color: #12D0F5;
+}
+
+.sub {
+    margin: 0;
+    color: rgba(226, 232, 240, 0.78);
+    font-size: 15px;
+}
+
+/* кнопка "Добавить отзыв" справа */
+.addBtn {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    appearance: none;
+    border: none;
+    padding: 12px 22px;
+    border-radius: 999px;
+    background: #12D0F5;
+    color: #020617;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow:
+            0 0 40px rgba(18, 208, 245, 0.9),
+            0 0 0 0px rgba(15, 23, 42, 1);
+}
+
+.addBtn:hover {
+    box-shadow:
+            0 0 52px rgba(18, 208, 245, 1),
+            0 0 0 0px rgba(15, 23, 42, 1);
+}
+
+/* на мобильных кнопка под заголовком */
+@media (max-width: 768px) {
+    .addBtn {
+        position: static;
+        transform: none;
+        margin-top: 18px;
+        display: inline-flex;
+    }
+
+    .head {
+        text-align: center;
+    }
+}
+
+/* ====== СТАТИСТИКА ====== */
+.statsGrid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-bottom: 40px;
+}
+
+@media (min-width: 1024px) {
+    .statsGrid {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+}
+
+.statCard {
+    padding: 20px 18px;
+    border-radius: 32px;
+    background: rgba(15, 23, 42, 0.65);
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    box-shadow:
+            0 20px 45px rgba(15, 23, 42, 0.6),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(18px);
+    text-align: center;
+}
+
+.statValue {
+    margin: 0 0 6px;
+    font-size: 26px;
+    font-weight: 800;
+    background: linear-gradient(90deg, #12D0F5, #4BE8FF);
+    -webkit-background-clip: text;
+    color: transparent;
+}
+
+.statLabel {
+    margin: 0;
+    font-size: 13px;
+    color: rgba(226, 232, 240, 0.8);
+}
+
+/* ====== СООБЩЕНИЯ ====== */
+.alert {
+    background: rgba(248, 113, 113, 0.12);
+    color: #fecaca;
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin: 12px 0;
+    border: 1px solid rgba(248, 113, 113, 0.6);
+}
+
+.success {
+    background: rgba(34, 197, 94, 0.16);
+    color: #bbf7d0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    margin: 12px 0;
+    border: 1px solid rgba(34, 197, 94, 0.6);
+}
+
+.skel,
+.empty {
+    color: rgba(226, 232, 240, 0.8);
+    padding: 16px 0 24px;
+    text-align: center;
+    font-size: 15px;
+}
+
+/* ============================================================
+   =====================  КАРУСЕЛЬ  ===========================
+   ============================================================ */
+
+.carousel {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    width: 100%;
+}
+
+/* Кнопки навигации */
+.navBtn {
+    width: 40px;
+    height: 40px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 22px;
+    color: rgba(248, 250, 252, 0.9);
+    transition: 160ms background, 160ms transform;
+}
+
+.navBtn:hover {
+    background: rgba(30, 64, 175, 0.98);
+    transform: translateY(-1px);
+}
+
+/* Контейнер карточек */
+.list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+
+    flex: 0 1 auto;
+    max-width: 880px;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(260px, 1fr);
+    gap: 24px;
+}
+
+/* Карточка отзыва */
+.item {
+    border-radius: 36px;
+    padding: 26px 26px 22px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    box-shadow:
+            0 26px 70px rgba(15, 23, 42, 0.95),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+    backdrop-filter: blur(28px);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-height: 220px;
+    transition:
+            transform 0.25s ease,
+            box-shadow 0.25s ease,
+            border-color 0.25s ease;
+}
+
+.item:hover {
+    transform: translateY(-6px);
+    border-color: rgba(148, 163, 184, 0.8);
+    box-shadow:
+            0 34px 90px rgba(15, 23, 42, 1),
+            0 0 0 1px rgba(18, 208, 245, 0.26);
+}
+
+/* иконка кавычек */
+.quoteIcon {
+    width: 40px;
+    height: 40px;
+    border-radius: 14px;
+    background: rgba(18, 208, 245, 0.16);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.quoteSvg {
+    width: 22px;
+    height: 22px;
+    color: #12D0F5;
+}
+
+/* рейтинг */
+.starsRow {
+    margin-top: 4px;
+}
+
+.stars {
+    color: #facc15;
+    font-size: 16px;
+    line-height: 1;
+}
+
+.dim {
+    color: rgba(30, 64, 175, 0.4);
+}
+
+/* текст отзыва */
+.text {
+    color: rgba(248, 250, 252, 0.9);
+    margin: 6px 0 10px;
+    line-height: 1.6;
+    font-size: 14px;
+}
+
+/* автор */
+.authorRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: auto;
+}
+
+.avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    background: linear-gradient(135deg, #12D0F5, #4BE8FF);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #020617;
+    font-weight: 700;
+    font-size: 16px;
+    box-shadow:
+            0 0 0 0px rgba(15, 23, 42, 1),
+            0 14px 30px rgba(18, 208, 245, 0.7);
+}
+
+.authorMeta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.title {
+    font-weight: 600;
+    font-size: 15px;
+    color: #f9fafb;
+}
+
+.meta {
+    color: rgba(148, 163, 184, 0.9);
+    font-size: 13px;
+}
+
+/* Нижняя зона */
+.carouselFooter {
+    margin-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: center;
+}
+
+/* Точки */
+.dots {
+    display: flex;
+    gap: 6px;
+}
+
+.dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.8);
+    background: rgba(15, 23, 42, 1);
+    cursor: pointer;
+}
+
+.dotActive {
+    background: #12D0F5;
+    border-color: #12D0F5;
+}
+
+.moreLink {
+    font-size: 14px;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    color: #12D0F5;
+    padding: 4px 0;
+}
+
+/* ====== АДАПТИВ ====== */
+
+@media (max-width: 960px) {
+    .statsGrid {
+        margin-bottom: 32px;
+    }
+
+    .list {
+        gap: 16px;
+    }
+
+    .item {
+        border-radius: 28px;
+        padding: 22px 20px 18px;
+    }
+}
+
+@media (max-width: 640px) {
+    .section {
+        padding: 80px 0;
+    }
+
+    .wrap {
+        padding: 0 16px;
+    }
+
+    .h2 {
+        font-size: 30px;
+    }
+
+    .statsGrid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .navBtn {
+        width: 34px;
+        height: 34px;
+    }
+}
+
+/* ============================================================
+   ======================= МОДАЛКА ============================
+   ============================================================ */
+
+.modalBackdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 15, 30, 0.65);
+    display: grid;
+    place-items: center;
+    z-index: 50;
+}
+
+.modal {
+    box-sizing: border-box;
+    background: #ffffff;
+    width: min(560px, calc(100vw - 40px));
+    border-radius: 16px;
+    padding: 20px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.modalHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+}
+
+.modalTitle {
+    font-weight: 700;
+    font-size: 20px;
+    color: #0f172a;
+}
+
+.modalClose {
+    background: #f1f5f9;
+    border: 0;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 18px;
+    color: #0f172a;
+}
+
+.form {
+    display: grid;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.field {
+    display: grid;
+    gap: 6px;
+}
+
+.label {
+    font-size: 14px;
+    color: #475569;
+}
+
+.input,
+.textarea {
+    box-sizing: border-box;
+    width: 100%;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    padding: 10px 12px;
+    font: inherit;
+    color: #0f172a;
+    outline: none;
+    background: #ffffff;
+}
+
+.input:focus,
+.textarea:focus {
+    box-shadow: 0 0 0 3px rgba(60, 126, 244, 0.2);
+    border-color: #3c7ef4;
+}
+
+.textarea {
+    resize: vertical;
+}
+
+.rateRow {
+    display: flex;
+    gap: 6px;
+}
+
+.starBtn {
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+    color: #94a3b8;
+    cursor: pointer;
+}
+
+.starOn {
+    color: #f59e0b;
+    border-color: #f59e0b;
+    background: #fff7ed;
+}
+
+.actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.secondary {
+    appearance: none;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #0f172a;
+    padding: 10px 16px;
+    border-radius: 10px;
+    cursor: pointer;
+}

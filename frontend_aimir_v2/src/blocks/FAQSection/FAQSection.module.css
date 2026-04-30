@@ -1,0 +1,206 @@
+.section {
+    position: relative;
+    padding: 96px 0;
+    background: rgba(241, 245, 249, 0.7);
+}
+
+.wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 0 24px;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 32px;
+}
+
+@media (min-width: 1024px) {
+    .grid {
+        grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.1fr);
+        gap: 48px;
+    }
+}
+
+/* левая колонка */
+
+.left {
+    max-width: 480px;
+}
+
+@media (min-width: 1024px) {
+    .left {
+        position: sticky;
+        top: 120px;
+        align-self: flex-start;
+    }
+}
+
+.badge {
+    display: inline-block;
+    padding: 8px 16px;
+    border-radius: 999px;
+    background: rgba(56, 189, 248, 0.12);
+    color: #0ea5e9;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 18px;
+}
+
+.title {
+    margin: 0 0 10px;
+    font-size: 34px;
+    font-weight: 800;
+    color: #0f172a;
+}
+
+.gradient {
+    background: linear-gradient(90deg, #0ea5e9, #0ea5e9);
+    -webkit-background-clip: text;
+    color: transparent;
+}
+
+.subtitle {
+    margin: 0 0 24px;
+    font-size: 16px;
+    color: #6b7280;
+}
+
+.contacts {
+    display: flex;
+    gap: 16px;
+}
+
+.emailLink {
+    font-size: 14px;
+    font-weight: 500;
+    color: #0ea5e9;
+    text-decoration: none;
+}
+
+.emailLink:hover {
+    text-decoration: underline;
+}
+
+/* правая колонка */
+
+.right {
+    width: 100%;
+}
+
+.accordion {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+/* элемент аккордеона */
+
+.item {
+    border-radius: 18px;
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid rgba(148, 163, 184, 0.4);
+    box-shadow:
+            0 10px 26px rgba(15, 23, 42, 0.08),
+            inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+    backdrop-filter: blur(10px);
+}
+
+.trigger {
+    width: 100%;
+    padding: 20px 22px;
+    border: none;
+    background: transparent;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    cursor: pointer;
+    text-align: left;
+
+    font-size: 15px;
+    font-weight: 600;
+    color: #0f172a;
+
+    border-radius: 18px 18px 0 0;
+}
+
+.trigger:hover {
+    background: rgba(241, 245, 249, 0.8);
+}
+
+.triggerOpen {
+    border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+/* плюсик / крестик */
+
+.icon {
+    flex-shrink: 0;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.7);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    line-height: 1;
+    color: #64748b;
+    transform: rotate(0deg);
+    transition: transform 0.2s ease, background 0.2s ease, color 0.2s ease;
+}
+
+.iconOpen {
+    transform: rotate(45deg);
+    background: #0ea5e9;
+    color: #f9fafb;
+    border-color: #0ea5e9;
+}
+
+/* контент */
+
+.content {
+    max-height: 0;
+    overflow: hidden;
+    padding: 0 22px;
+    transition: max-height 0.25s ease;
+}
+
+.contentOpen {
+    max-height: 400px;
+    padding-bottom: 18px;
+}
+
+.answer {
+    margin: 8px 0 0;
+    font-size: 14px;
+    line-height: 1.7;
+    color: #6b7280;
+}
+
+/* адаптив */
+
+@media (max-width: 640px) {
+    .section {
+        padding: 64px 0;
+    }
+
+    .wrap {
+        padding: 0 16px;
+    }
+
+    .title {
+        font-size: 26px;
+    }
+
+    .trigger {
+        padding: 16px 18px;
+        font-size: 14px;
+    }
+
+    .content {
+        padding: 0 18px;
+    }
+}
