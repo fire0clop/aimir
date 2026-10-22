@@ -50,3 +50,10 @@ frontend_aimir_v2/build/
 # Uploads (user files — don't commit)
 uploads/
 temp_uploads/
+
+# User documents and storage (data — never commit)
+documents/
+storage/
+
+# Claude Code local config
+.claude/
