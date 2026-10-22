@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any, Tuple
 from jose import jwt, JWTError
 from passlib.context import CryptContext
@@ -16,14 +16,19 @@ def hash_password(password: str) -> str:
 def verify_password(plain: str, hashed: str) -> bool:
     return pwd_context.verify(plain, hashed)  # сам поймёт схема хэша
 
-def _create_token(subject: str, expires_delta: timedelta) -> str:
-    now = datetime.utcnow()
-    payload: Dict[str, Any] = {"sub": subject, "iat": now, "exp": now + expires_delta}
+def _create_token(subject: str, expires_delta: timedelta, token_type: str) -> str:
+    now = datetime.now(timezone.utc)
+    payload: Dict[str, Any] = {
+        "sub": subject,
+        "iat": now,
+        "exp": now + expires_delta,
+        "type": token_type,
+    }
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
 def create_token_pair(user_id: str) -> Tuple[str, str]:
-    access = _create_token(user_id, timedelta(minutes=settings.ACCESS_TOKEN_MINUTES))
-    refresh = _create_token(user_id, timedelta(days=settings.REFRESH_TOKEN_DAYS))
+    access = _create_token(user_id, timedelta(minutes=settings.ACCESS_TOKEN_MINUTES), "access")
+    refresh = _create_token(user_id, timedelta(days=settings.REFRESH_TOKEN_DAYS), "refresh")
     return access, refresh
 
 def decode_token(token: str) -> Optional[dict]:

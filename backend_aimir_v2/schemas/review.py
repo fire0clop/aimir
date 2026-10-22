@@ -34,7 +34,7 @@ class ReviewPublish(BaseModel):
 # -------- Out --------
 class ReviewOut(BaseModel):
     id: int
-    email: EmailStr
+    email: str  # в публичных ответах приходит замаскированным (a***@host)
     title: str
     description: Optional[str] = None
     rating: int

@@ -26,5 +26,5 @@ def get_cost_for_tokens(tokens: int) -> Decimal:
     """
     Возвращаем стоимость токенов в РУБЛЯХ по усреднённой ставке за 1000 токенов.
     """
-    price_per_1k_rub = Decimal(str(settings.OPENAI_GPT4O_BLEND_PER_1K_RUB))
+    price_per_1k_rub = Decimal(str(settings.ANTHROPIC_BLEND_PER_1K_RUB))
     return (Decimal(tokens) / Decimal(1000)) * price_per_1k_rub

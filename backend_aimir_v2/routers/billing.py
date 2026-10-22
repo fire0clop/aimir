@@ -12,6 +12,7 @@ from typing import Optional
 
 import requests
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 
 from db import get_db
@@ -100,9 +101,9 @@ TBANK_API_BASE = settings.TBANK_API.rstrip("/")  # например, https://sec
 TBANK_INIT_URL = f"{TBANK_API_BASE}/Init"
 
 PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "").rstrip("/")
-TBANK_SUCCESS_URL = os.getenv("TBANK_SUCCESS_URL") or (PUBLIC_BASE_URL + "/billing") if PUBLIC_BASE_URL else ""
-TBANK_FAIL_URL = os.getenv("TBANK_FAIL_URL") or (PUBLIC_BASE_URL + "/billing") if PUBLIC_BASE_URL else ""
-TBANK_NOTIFY_URL = os.getenv("TBANK_NOTIFY_URL") or (PUBLIC_BASE_URL + "/billing/webhook") if PUBLIC_BASE_URL else ""
+TBANK_SUCCESS_URL = os.getenv("TBANK_SUCCESS_URL") or ((PUBLIC_BASE_URL + "/billing") if PUBLIC_BASE_URL else "")
+TBANK_FAIL_URL = os.getenv("TBANK_FAIL_URL") or ((PUBLIC_BASE_URL + "/billing") if PUBLIC_BASE_URL else "")
+TBANK_NOTIFY_URL = os.getenv("TBANK_NOTIFY_URL") or ((PUBLIC_BASE_URL + "/billing/webhook") if PUBLIC_BASE_URL else "")
 
 # флаг, чтобы в dev можно было тестировать без проверки подписи
 WEBHOOK_SKIP_TOKEN = os.getenv("TBANK_WEBHOOK_SKIP_TOKEN", "false").lower() in ("1", "true", "yes", "y")
@@ -204,12 +205,6 @@ def _tbank_webhook_token(payload: dict) -> str:
     # полная строка с паролем
     concat = concat_values + (TBANK_PASSWORD or "")
     token_hex = hashlib.sha256(concat.encode("utf-8")).hexdigest()
-
-    logger.info("[TBANK][DEBUG] WEBHOOK TOKEN items_sorted=%r", items_sorted)
-    logger.info("[TBANK][DEBUG] WEBHOOK TOKEN concat_values=%s", concat_values)
-    logger.info("[TBANK][DEBUG] WEBHOOK TOKEN password=%s", TBANK_PASSWORD or "")
-    logger.info("[TBANK][DEBUG] WEBHOOK TOKEN expected_hash=%s", token_hex)
-
     return token_hex
 
 
@@ -281,6 +276,10 @@ def subscribe(
     ВАЖНО: этот эндпоинт НЕ ходит в банк — подписка активируется сразу.
     Оставляем для обратной совместимости / тестов.
     """
+    # при настроенном эквайринге бесплатная активация запрещена
+    if TBANK_TERMINAL_KEY and TBANK_PASSWORD:
+        raise HTTPException(status_code=403, detail="Use payment flow")
+
     user = _get_current_user(authorization, db)
 
     months_map = {"month": 1, "6m": 6, "year": 12}
@@ -338,6 +337,10 @@ def add_credits(
     ВАЖНО: этот эндпоинт НЕ ходит в банк — кредиты сразу начисляются.
     Оставляем для обратной совместимости / тестов.
     """
+    # при настроенном эквайринге бесплатное начисление запрещено
+    if TBANK_TERMINAL_KEY and TBANK_PASSWORD:
+        raise HTTPException(status_code=403, detail="Use payment flow")
+
     user = _get_current_user(authorization, db)
 
     user.balance = (Decimal(user.balance or 0) + Decimal(body.quantity))
@@ -578,22 +581,9 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
     try:
         # какие поля мы реально используем
         token_input = {k: v for k, v in data.items() if k != "Token" and v not in (None, {})}
-        logger.info("[TBANK][DEBUG] TOKEN INPUT FIELDS: %s", token_input)
-
-        # строка, которую мы хешируем
-        def norm(v):
-            import json
-            if isinstance(v, bool):
-                return "true" if v else "false"
-            if isinstance(v, (dict, list)):
-                return json.dumps(v, ensure_ascii=False, separators=(",", ":"))
-            return str(v)
-
-        concat = "".join(norm(token_input[k]) for k in sorted(token_input.keys())) + (TBANK_PASSWORD or "")
-        logger.info("[TBANK][DEBUG] CONCAT STRING BEFORE HASH: %s", concat)
-
+        logger.info("[TBANK] webhook fields: %s", sorted(token_input.keys()))
     except Exception as e:
-        logger.error("[TBANK][DEBUG] ERROR BUILDING CONCAT STRING: %s", e)
+        logger.error("[TBANK] error inspecting webhook payload: %s", e)
 
     payment_id = str(data.get("PaymentId") or "")
     order_id = str(data.get("OrderId") or "")
@@ -624,11 +614,11 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
     if status_str != "CONFIRMED":
         logger.info("[TBANK] webhook: skip apply for status=%s (waiting CONFIRMED)", status_str)
         # можем просто принять, но ничего не менять
-        return {"ok": True, "skipped": status_str}
+        return PlainTextResponse("OK")  # skipped status
 
     if not order_id:
         logger.warning("[TBANK] webhook: empty OrderId")
-        return {"ok": True, "note": "empty_order_id"}
+        return PlainTextResponse("OK")  # empty order id
 
     # ищем транзакцию по провайдеру и order_id
     tx: Optional[BillingTransaction] = (
@@ -642,7 +632,7 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
 
     if not tx:
         logger.warning("[TBANK] webhook: transaction not found for order_id=%s", order_id)
-        return {"ok": True, "note": "transaction_not_found"}
+        return PlainTextResponse("OK")  # transaction not found
 
     # если уже применена — просто обновим статус провайдера и выйдем
     if tx.applied:
@@ -652,7 +642,7 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
         db.add(tx)
         db.commit()
         logger.info("[TBANK] webhook: duplicate for order_id=%s (already applied)", order_id)
-        return {"ok": True, "duplicate": True}
+        return PlainTextResponse("OK")  # duplicate
 
     # получаем пользователя
     user: Optional[User] = db.query(User).filter(User.id == tx.user_id).first()
@@ -732,4 +722,4 @@ async def tbank_webhook(request: Request, db: Session = Depends(get_db)):
 
     _ensure_subscription_flag(user, db)
 
-    return {"ok": True}
+    return PlainTextResponse("OK")

@@ -1,20 +1,13 @@
-from pydantic import BaseModel, EmailStr, Field, HttpUrl
+from pydantic import BaseModel, EmailStr, Field
 
 
 class TelegramIdUpsert(BaseModel):
     telegram_id: str = Field(min_length=1, max_length=64)
 
-class TelegramIdDelete(BaseModel):
-    confirm: bool = True
-
-class UserCreate(BaseModel):
-    name: str
-    email: EmailStr
-    password: str
-
 class UserLogin(BaseModel):
     email: EmailStr
-    password: str
+    # пустой пароль допустим: старые Google-аккаунты входят только по e-mail
+    password: str = ""
 
 class TokenPair(BaseModel):
     access_token: str
@@ -52,15 +45,3 @@ class PasswordComplete(BaseModel):
     code: str = Field(min_length=6, max_length=6)
     new_password: str = Field(min_length=6)
 
-class GoogleLogin(BaseModel):
-    id_token: str
-
-
-class TelegramAuth(BaseModel):
-    id: int
-    first_name: str
-    last_name: str | None = None
-    username: str | None = None
-    photo_url: HttpUrl | None = None
-    auth_date: int
-    hash: str

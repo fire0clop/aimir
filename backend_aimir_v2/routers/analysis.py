@@ -8,11 +8,11 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Optional, List, Tuple, Dict, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Header, Request, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from openai import OpenAI
+from anthropic import Anthropic
 
 from core.config import settings
 from core.security import decode_token
@@ -39,20 +39,19 @@ DOCS_ROOT = Path(getattr(settings, "DOCUMENTS_DIR", "./documents")).resolve()
 DOCS_ROOT.mkdir(parents=True, exist_ok=True)
 
 
-# --- OpenAI client ---
+# --- Anthropic client ---
 
 
-def _openai_client() -> OpenAI:
+def _anthropic_client() -> Anthropic:
     api_key = None
-    keys = getattr(settings, "OPENAI_KEYS", []) or []
+    keys = getattr(settings, "ANTHROPIC_KEYS", []) or []
     if keys:
         api_key = keys[0]
     if not api_key:
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
-        raise RuntimeError("No OpenAI API key configured")
-    client = OpenAI(api_key=api_key)
-    return client
+        raise RuntimeError("No Anthropic API key configured")
+    return Anthropic(api_key=api_key)
 
 
 # --- helpers ---
@@ -205,13 +204,10 @@ def _load_analysis_from_disk(storage_dir: Path) -> dict:
 
 
 def _usage_tokens(usage) -> int:
-    """
-    Подсчёт токенов по объекту usage от OpenAI.
-    """
     if usage is None:
         return 0
     try:
-        return int((usage.prompt_tokens or 0) + (usage.completion_tokens or 0))  # type: ignore[attr-defined]
+        return int((usage.input_tokens or 0) + (usage.output_tokens or 0))  # type: ignore[attr-defined]
     except Exception:
         return 0
 
@@ -308,14 +304,20 @@ def analyze_parties(
     document_id: str = Query(..., alias="document_id"),
     force: bool = Query(False),
     db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None, convert_underscores=False),
 ):
+    user = _get_user_from_auth(authorization, db)
     loaded = _load_document_and_text(db, document_id)
+
+    # документы пользователей доступны только их владельцу
+    if loaded.kind == "user" and (not user or loaded.owner_id != str(user.id)):
+        raise HTTPException(status_code=403, detail="Document does not belong to user")
+
     text = loaded.text
 
-    client = _openai_client()
+    client = _anthropic_client()
 
     base_prompt = settings.PROMPT_IDENTIFY_PARTIES
-
 
     preview = text[:2000]
     full_prompt = (
@@ -324,35 +326,38 @@ def analyze_parties(
         f"{preview}\n"
     )
 
-    print("\n========== GPT PROMPT START ==========")
+    print("\n========== CLAUDE PROMPT START ==========")
     print(full_prompt[:4000])
-    print("========== GPT PROMPT END ==========\n")
+    print("========== CLAUDE PROMPT END ==========\n")
 
+    parties_prompt = (
+        "Определи все стороны договора из текста ниже.\n"
+        "Верни ТОЛЬКО JSON в точном формате — без markdown, без пояснений:\n"
+        '{"parties":[{"name":"Название стороны","role":"Роль в договоре"}]}\n\n'
+        "Пример ответа:\n"
+        '{"parties":[{"name":"ООО Ромашка","role":"Заказчик"},{"name":"ИП Иванов","role":"Исполнитель"}]}\n\n'
+        f"{full_prompt}"
+    )
     try:
-        completion = client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": "Ты помощник по юридическому анализу договоров."},
-                {"role": "user", "content": full_prompt},
-            ],
-            max_completion_tokens=256,
+        completion = client.messages.create(
+            model=settings.ANTHROPIC_MODEL,
+            system="Ты инструмент извлечения данных. Отвечай строго валидным JSON без markdown и без лишнего текста.",
+            messages=[{"role": "user", "content": parties_prompt}],
+            max_tokens=512,
+            # sonnet-5: без явного disabled модель по умолчанию включает adaptive
+            # thinking — для извлечения JSON это лишние токены и задержка
+            thinking={"type": "disabled"},
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI error: {e!r}")
 
-    choice = completion.choices[0]
-    content = choice.message.content or ""
+    content = completion.content[0].text if completion.content else ""
 
-    print("========== GPT RAW RESPONSE ==========")
-    print(f"finish_reason: {choice.finish_reason}")
+    print("========== CLAUDE RAW RESPONSE ==========")
+    print(f"stop_reason: {completion.stop_reason}")
     print(f"usage: {completion.usage}")
     print(f"content (repr): {content!r}")
     print(f"content (first 2000):\n{content[:2000]}")
-    try:
-        j = completion.model_dump_json()  # type: ignore[attr-defined]
-        print(f"\nfull completion (json, truncated): {j[:1000]}")
-    except Exception:
-        pass
     print("========== END ==========\n")
 
     if not content.strip():
@@ -370,6 +375,16 @@ def analyze_parties(
 
     if isinstance(parties_struct, list):
         for item in parties_struct:
+            if isinstance(item, dict):
+                name = (item.get("name") or "").strip()
+                role = (item.get("role") or "").strip()
+                if name:
+                    names.append(name)
+                elif role:
+                    names.append(role)
+    elif isinstance(parties_struct, dict):
+        # Клод вернул dict вместо list — нормализуем
+        for item in parties_struct.values():
             if isinstance(item, dict):
                 name = (item.get("name") or "").strip()
                 role = (item.get("role") or "").strip()
@@ -396,7 +411,7 @@ def _run_full_analysis_for_party(text: str, party: str) -> Tuple[dict, int, int]
     if not chunks:
         raise HTTPException(status_code=422, detail="Document text is empty")
 
-    client = _openai_client()
+    client = _anthropic_client()
 
     base_prompt = settings.PROMPT_FULL_ANALYSIS
     merge_prompt = settings.MERGE_PROMPT
@@ -418,31 +433,26 @@ def _run_full_analysis_for_party(text: str, party: str) -> Tuple[dict, int, int]
             f"{chunk}\n"
         )
 
-        print("\n========== GPT PART PROMPT START ==========")
+        print("\n========== CLAUDE PART PROMPT START ==========")
         print(user_content[:4000])
-        print("========== GPT PART PROMPT END ==========\n")
+        print("========== CLAUDE PART PROMPT END ==========\n")
 
         try:
-            completion = client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "Ты помощник по юридическому анализу договоров.",
-                    },
-                    {"role": "user", "content": user_content},
-                ],
-                max_completion_tokens=min(settings.OPENAI_MAX_TOKENS, 1024),
+            completion = client.messages.create(
+                model=settings.ANTHROPIC_MODEL,
+                system="Ты помощник по юридическому анализу договоров.",
+                messages=[{"role": "user", "content": user_content}],
+                max_tokens=min(settings.ANTHROPIC_MAX_TOKENS, 1024),
+                thinking={"type": "disabled"},
             )
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"AI error (part {idx}): {e!r}")
 
-        choice = completion.choices[0]
-        content = choice.message.content or ""
+        content = completion.content[0].text if completion.content else ""
 
-        print("========== GPT PART RAW RESPONSE ==========")
+        print("========== CLAUDE PART RAW RESPONSE ==========")
         print(f"part: {idx}/{parts_count}")
-        print(f"finish_reason: {choice.finish_reason}")
+        print(f"stop_reason: {completion.stop_reason}")
         print(f"usage: {completion.usage}")
         print(f"content (first 2000):\n{content[:2000]}")
         print("========== END ==========\n")
@@ -480,30 +490,25 @@ def _run_full_analysis_for_party(text: str, party: str) -> Tuple[dict, int, int]
         f"{merge_text}\n"
     )
 
-    print("\n========== GPT MERGE PROMPT START ==========")
+    print("\n========== CLAUDE MERGE PROMPT START ==========")
     print(merge_user_content[:4000])
-    print("========== GPT MERGE PROMPT END ==========\n")
+    print("========== CLAUDE MERGE PROMPT END ==========\n")
 
     try:
-        completion_merge = client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
-            messages=[
-                {
-                    "role": "system",
-                    "content": "Ты помощник по юридическому анализу договоров.",
-                },
-                {"role": "user", "content": merge_user_content},
-            ],
-            max_completion_tokens=min(settings.OPENAI_MAX_TOKENS, 512),
+        completion_merge = client.messages.create(
+            model=settings.ANTHROPIC_MODEL,
+            system="Ты помощник по юридическому анализу договоров.",
+            messages=[{"role": "user", "content": merge_user_content}],
+            max_tokens=min(settings.ANTHROPIC_MAX_TOKENS, 512),
+            thinking={"type": "disabled"},
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI error (merge): {e!r}")
 
-    choice_m = completion_merge.choices[0]
-    content_m = choice_m.message.content or ""
+    content_m = completion_merge.content[0].text if completion_merge.content else ""
 
-    print("========== GPT MERGE RAW RESPONSE ==========")
-    print(f"finish_reason: {choice_m.finish_reason}")
+    print("========== CLAUDE MERGE RAW RESPONSE ==========")
+    print(f"stop_reason: {completion_merge.stop_reason}")
     print(f"usage: {completion_merge.usage}")
     print(f"content (first 2000):\n{content_m[:2000]}")
     print("========== END ==========\n")
@@ -551,7 +556,8 @@ def select_party(
     user = _get_user_from_auth(authorization, db)
     loaded = _load_document_and_text(db, body.document_id)
 
-    if user and loaded.kind == "user" and loaded.owner_id != str(user.id):
+    # документы пользователей доступны только их владельцу
+    if loaded.kind == "user" and (not user or loaded.owner_id != str(user.id)):
         raise HTTPException(status_code=403, detail="Document does not belong to user")
 
     text = loaded.text
@@ -782,8 +788,15 @@ _ANALYSIS_SYSTEM = """Ты — опытный юрист, который пом�
 2. Для каждой проблемы приводи ТОЧНУЮ цитату из договора — слово в слово из указанного абзаца, ничего не перефразируй
 3. Объясняй конкретно: что реально может случиться с человеком из-за этого пункта
 4. Пропускай стандартные, безопасные, технические пункты (реквизиты, преамбула, стандартные обязательства)
-5. Отвечай строго JSON, никакого текста вне объекта
-6. Язык — русский"""
+5. Отвечай СТРОГО JSON без markdown-обёртки (без ```json, без ```), никакого текста вне объекта
+6. Язык — русский
+7. НИКОГДА не сообщай, что пункт «обрезан», «оборван», «неполный», «разорван» или что «текст утерян/потерян». Это артефакты извлечения текста, а НЕ юридическая проблема. Если фрагмент кажется неполным — молча пропусти его и анализируй только содержательные условия.
+8. ПРОПУСКИ И НЕЗАПОЛНЕННЫЕ ПОЛЯ («___», «__», пустые места для суммы, срока, даты, номера счёта, реквизитов, ФИО) — это НОРМАЛЬНО для проекта/шаблона договора. Перед тобой ЧЕРНОВИК, который ещё будут заполнять. Это НЕ ошибка, НЕ юридическая дыра и НЕ повод для тревоги. Строгие правила для пропусков:
+   - severity ВСЕГДА "low";
+   - ЗАПРЕЩЕНО придумывать катастрофические последствия («потеряете жильё/квартиру», «договор признают недействительным/незаключённым/бессрочным», «выселят», «злоупотребления», «крайне сложно доказать»). Это всего лишь ещё не вписанное значение;
+   - risk и why — одна спокойная нейтральная фраза в духе «поле пока не заполнено, впишите значение до подписания», без запугивания;
+   - ВСЕ пропуски объедини в ОДНУ находку с перечнем (problem: «Незаполненные поля черновика»), а НЕ создавай отдельную запись на каждый прочерк;
+   - пропуски НЕ должны быть главной темой анализа и НЕ должны сами по себе сильно снижать danger_score. Оценивай опасность по РЕАЛЬНО написанным условиям, а не по пустым полям."""
 
 _ANALYSIS_USER = """\
 Проанализируй договор с точки зрения стороны: {party}
@@ -809,13 +822,15 @@ _ANALYSIS_USER = """\
       "risk": "Конкретный сценарий: что может случиться с {party} если это останется в договоре",
       "why": "Простым языком без терминов: почему этот пункт выгоден контрагенту и опасен для {party}",
       "fix": "Что конкретно попросить изменить, добавить или убрать перед подписанием",
+      "suggestion": "Готовая новая редакция процитированного фрагмента text: юридически корректный текст, который вставится в договор ВМЕСТО text. Сохрани номер пункта, если он есть в начале цитаты. Только текст пункта, без комментариев и кавычек.",
       "severity": "high"
     }}
   ]
 }}
 
-danger_score: 100 = полностью безопасно, 0 = крайне опасно
-severity: high = финансовые потери или юридическая ответственность | medium = проблемы при исполнении | low = желательно исправить"""
+danger_score: 100 = полностью безопасно, 0 = крайне опасно. Незаполненные поля черновика НЕ снижают danger_score — оценивай по написанным условиям.
+severity: high = финансовые потери или юридическая ответственность | medium = проблемы при исполнении | low = желательно исправить ИЛИ незаполненное поле шаблона
+Незаполненные пропуски («___») — это черновик, а не ошибка: собери их в ОДНУ находку severity "low", спокойным тоном, без страшных сценариев."""
 
 _ANALYSIS_USER_PART = """\
 Проанализируй ЧАСТЬ {part_num} из {total_parts} договора с точки зрения стороны: {party}
@@ -841,12 +856,13 @@ _ANALYSIS_USER_PART = """\
       "risk": "конкретный сценарий",
       "why": "объяснение простым языком",
       "fix": "что изменить",
+      "suggestion": "готовая новая редакция фрагмента text (вставится в договор вместо него; сохрани номер пункта, без комментариев)",
       "severity": "high|medium|low"
     }}
   ]
 }}"""
 
-_MERGE_SYSTEM = """Ты — юридический аналитик. Объединяешь частичные анализы договора в один итоговый. Отвечаешь строго JSON."""
+_MERGE_SYSTEM = """Ты — юридический аналитик. Объединяешь частичные анализы договора в один итоговый. Отвечаешь строго JSON без markdown-обёртки (без ```json, без ```)."""
 
 _MERGE_USER = """\
 Объедини частичные анализы фрагментов одного договора в один итоговый анализ.
@@ -856,7 +872,7 @@ _MERGE_USER = """\
 - danger_score: среднее, но если есть хоть один high-риск — снизь на 10-15 пунктов
 - verdict: итоговая рекомендация по всему договору
 - issues: объедини все проблемы, удали дубликаты, отсортируй high→medium→low
-- При объединении issues: СОХРАНЯЙ дословные цитаты без изменений
+- При объединении issues: СОХРАНЯЙ дословные цитаты (text) и готовые редакции (suggestion) без изменений
 
 ЧАСТИЧНЫЕ АНАЛИЗЫ:
 {parts_json}
@@ -891,7 +907,7 @@ def _run_full_analysis_v2(text: str, party: str) -> Tuple[dict, int, int]:
         raise HTTPException(status_code=422, detail="Document text is empty")
 
     numbered_text, paragraphs = number_paragraphs(text)
-    client = _openai_client()
+    client = _anthropic_client()
 
     if len(numbered_text) <= _MAX_CHARS_SINGLE_PASS:
         # ── Single pass ──────────────────────────────────────────────────────
@@ -943,23 +959,29 @@ def _run_full_analysis_v2(text: str, party: str) -> Tuple[dict, int, int]:
     return raw, tokens, parts_count
 
 
-def _call_analysis_api(client: OpenAI, system: str, user: str) -> Tuple[dict, int]:
-    """Single GPT call. Returns (parsed_dict, tokens_used)."""
+def _call_analysis_api(client: Anthropic, system: str, user: str) -> Tuple[dict, int]:
+    """Single Claude call. Returns (parsed_dict, tokens_used)."""
     try:
-        completion = client.chat.completions.create(
-            model=settings.OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-            max_completion_tokens=settings.OPENAI_MAX_TOKENS,
-            response_format={"type": "json_object"},
+        completion = client.messages.create(
+            model=settings.ANTHROPIC_MODEL,
+            system=system,
+            messages=[{"role": "user", "content": user}],
+            max_tokens=settings.ANTHROPIC_MAX_TOKENS,
+            # sonnet-5: без явного disabled модель по умолчанию включает adaptive
+            # thinking — для структурного анализа это лишние токены и задержка
+            thinking={"type": "disabled"},
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI error: {e!r}")
 
-    content = completion.choices[0].message.content or ""
+    content = completion.content[0].text if completion.content else ""
     tokens = _usage_tokens(completion.usage)
+
+    print("========== CLAUDE ANALYSIS RESPONSE ==========")
+    print(f"stop_reason: {completion.stop_reason}")
+    print(f"usage: {completion.usage}")
+    print(f"content (first 3000):\n{content[:3000]}")
+    print("========== END ==========\n")
 
     if not content.strip():
         raise HTTPException(status_code=502, detail="AI вернул пустой ответ")
@@ -996,6 +1018,7 @@ def _normalize_analysis_v2(data: dict) -> dict:
                     "risk": issue.get("risk", ""),
                     "why": issue.get("why", ""),
                     "fix": issue.get("fix", ""),
+                    "suggestion": issue.get("suggestion", ""),
                     "severity": issue.get("severity", "low") if issue.get("severity") in ["low", "medium",
                                                                                           "high"] else "low"
                 }
@@ -1021,7 +1044,8 @@ def select_party_v2(
     user = _get_user_from_auth(authorization, db)
     loaded = _load_document_and_text(db, body.document_id)
 
-    if user and loaded.kind == "user" and loaded.owner_id != str(user.id):
+    # документы пользователей доступны только их владельцу
+    if loaded.kind == "user" and (not user or loaded.owner_id != str(user.id)):
         raise HTTPException(status_code=403, detail="Document does not belong to user")
 
     text = loaded.text
@@ -1039,9 +1063,8 @@ def select_party_v2(
     response_analysis: dict = analysis_data
 
     if not user:
-        # Гость — только summary + общая оценка, issues скрыты
         access = AccessInfo(mode="guest", has_subscription=False, credits=0, can_unlock=False)
-        response_analysis = _apply_paywall_v2(analysis_data, access.mode)
+        response_analysis = _apply_paywall_v2(analysis_data, "guest")
     else:
         active = _is_subscription_active(user)
         credits = _get_credits(user)
@@ -1093,19 +1116,14 @@ def select_party_v2(
 def _apply_paywall_v2(analysis: dict, mode: str) -> dict:
     """
     Для гостя или preview — оставляем summary и overall_assessment,
-    issues заменяем на заглушку.
+    issues скрываем, но сообщаем их количество через issues_locked_count.
     """
     if mode == "full":
         return analysis
 
     result = dict(analysis)
-
-    if mode == "guest":
-        msg = "Детальный разбор пунктов договора доступен после регистрации."
-    else:
-        msg = "Детальный разбор пунктов договора доступен после разблокировки документа."
-
-    result["issues"] = [{"_placeholder": msg}] if analysis.get("issues") else []
+    result["issues_locked_count"] = len(analysis.get("issues", []))
+    result["issues"] = []
 
     return result
 
@@ -1187,4 +1205,99 @@ def unlock_analysis_v2(
         status=ca.status or "completed",
         analysis=full_norm,
         access=access,
+    )
+
+
+# ── Применение правок к документу и скачивание результата ──────────────────
+#
+# Методика: правки применяются к XML внутри .docx детерминированным кодом
+# (services/docx_edit.py) — меняется только текст в <w:t>, поэтому
+# форматирование, стили и таблицы сохраняются байт-в-байт.
+
+
+class ApplyEditItem(BaseModel):
+    old: str                      # заменяемый фрагмент (цитата из анализа)
+    new: str                      # новая редакция (предложение ИИ, возможно правленное)
+    clause: Optional[str] = None  # номер пункта вида "5.1" — подсказка для поиска
+
+
+class ApplyEditsBody(BaseModel):
+    document_id: str
+    edits: List[ApplyEditItem]
+
+
+@router.post("/apply-edits")
+def apply_document_edits(
+    body: ApplyEditsBody,
+    request: Request,
+    db: Session = Depends(get_db),
+    authorization: Optional[str] = Header(None, convert_underscores=False),
+    x_guest_token: Optional[str] = Header(None, alias="X-Guest-Token"),
+):
+    """
+    Принимает список правок «старый фрагмент → новый фрагмент», применяет их
+    к оригинальному .docx и возвращает исправленный файл.
+
+    Если хотя бы одна правка не нашлась в документе — файл не отдаётся,
+    возвращается 422 со списком проблемных правок (по индексам).
+    """
+    from services.docx_edit import apply_edits
+
+    if not body.edits:
+        raise HTTPException(status_code=400, detail="Список правок пуст")
+    if len(body.edits) > 100:
+        raise HTTPException(status_code=400, detail="Слишком много правок")
+
+    user = _get_user_from_auth(authorization, db)
+
+    # находим документ и проверяем владение (пользователь или гость)
+    doc = db.query(Document).filter(Document.id == body.document_id).first()
+    if doc:
+        if not user or str(doc.user_id) != str(user.id):
+            raise HTTPException(status_code=403, detail="Document does not belong to user")
+        storage_key, original_name = doc.storage_key, doc.original_name
+    else:
+        gdoc = db.query(GuestDocument).filter(GuestDocument.id == body.document_id).first()
+        if not gdoc:
+            raise HTTPException(status_code=404, detail="Document not found")
+        token = x_guest_token or request.cookies.get("guest_token")
+        from models.guest import GuestUser
+        gu = db.query(GuestUser).filter(GuestUser.label == (token or "")).first()
+        if not gu or str(gdoc.guest_id) != str(gu.id):
+            raise HTTPException(status_code=403, detail="Document does not belong to guest")
+        storage_key, original_name = gdoc.storage_key, gdoc.original_name
+
+    bin_path = DOCS_ROOT / storage_key
+    if not bin_path.exists():
+        raise HTTPException(status_code=404, detail="Исходный файл не найден")
+
+    # .doc и .pdf приводим к .docx (результат правки всегда выдаётся в DOCX)
+    from services.convert import ensure_docx, ConvertError
+    try:
+        docx_bytes, _converted = ensure_docx(bin_path, original_name or "")
+    except ConvertError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    try:
+        edited_bytes, report = apply_edits(
+            docx_bytes,
+            [e.dict() for e in body.edits],
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка применения правок: {e!r}")
+
+    failed = [r for r in report if not r["ok"]]
+    if failed:
+        raise HTTPException(status_code=422, detail={"failed": failed})
+
+    from urllib.parse import quote as url_quote
+    base = original_name.rsplit(".", 1)[0] if "." in original_name else original_name
+    out_name = f"{base} (исправленный).docx"
+    return Response(
+        content=edited_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers={
+            "Content-Disposition":
+                f"attachment; filename=\"edited.docx\"; filename*=UTF-8''{url_quote(out_name)}",
+        },
     )

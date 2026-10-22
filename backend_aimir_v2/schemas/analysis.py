@@ -59,12 +59,16 @@ class Issue(BaseModel):
     risk: str
     why: str
     fix: str
+    # готовая новая формулировка фрагмента text — для функции «Применить правку»
+    suggestion: str = ""
     severity: str  # "low" | "medium" | "high"
 
 class ContractAnalysisResponse(BaseModel):
     summary: str
     overall_assessment: OverallAssessment
     issues: List[Issue]
+    # сколько проблемных пунктов скрыто пейволом (для превью-режима)
+    issues_locked_count: Optional[int] = None
 
 class SelectPartyResponseV2(BaseModel):
     analysis_id: Optional[str] = None

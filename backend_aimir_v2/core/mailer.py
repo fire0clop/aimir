@@ -25,7 +25,8 @@ def _send(msg: EmailMessage):
                     s.login(settings.SMTP_USER, settings.SMTP_PASSWORD)
                 s.send_message(msg)
     except Exception as e:
-        print(f"[MAILER] fail to send to {msg['To']}: {e}\n---HTML---\n{msg.get_body(preferencelist=('html','plain')).get_content()}\n----------")
+        # тело письма не логируем — в нём одноразовые коды
+        print(f"[MAILER] fail to send to {msg['To']}: {type(e).__name__}: {e}")
 
 def send_email(to: str, subject: str, html: str, text: str | None = None):
     """

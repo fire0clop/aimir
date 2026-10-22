@@ -38,8 +38,6 @@ class Settings:
     TBANK_PASSWORD: str = os.getenv("TBANK_PASSWORD", "")
     TBANK_API: str = os.getenv("TBANK_API", "https://securepay.tinkoff.ru/v2")
 
-    TELEGRAM_BOT_TOKEN: str = os.getenv("TELEGRAM_BOT_TOKEN", "")
-
     YANDEX_METRIKA_COUNTER_ID: int = 104333423
     YANDEX_METRIKA_TOKEN: str = os.getenv("YANDEX_METRIKA_TOKEN", "")
 
@@ -52,19 +50,19 @@ class Settings:
     def GUEST_TTL_DELTA(self) -> timedelta:
         return timedelta(days=self.GUEST_TTL_DAYS)
 
-    # === OpenAI / модель ===
-    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "gpt-4o")
-    OPENAI_TIMEOUT_SECONDS: float = float(os.getenv("OPENAI_TIMEOUT_SECONDS", "60"))
-    OPENAI_MAX_TOKENS: int = int(os.getenv("OPENAI_MAX_TOKENS", "1024"))
+    # === Anthropic / модель ===
+    ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-5")
+    ANTHROPIC_TIMEOUT_SECONDS: float = float(os.getenv("ANTHROPIC_TIMEOUT_SECONDS", "60"))
+    ANTHROPIC_MAX_TOKENS: int = int(os.getenv("ANTHROPIC_MAX_TOKENS", "1024"))
 
     # Ключи (до трёх, для ротации)
-    OPENAI_API_KEY_1: str | None = os.getenv("OPENAI_API_KEY_1") or None
-    OPENAI_API_KEY_2: str | None = os.getenv("OPENAI_API_KEY_2") or None
-    OPENAI_API_KEY_3: str | None = os.getenv("OPENAI_API_KEY_3") or None
+    ANTHROPIC_API_KEY_1: str | None = os.getenv("ANTHROPIC_API_KEY_1") or None
+    ANTHROPIC_API_KEY_2: str | None = os.getenv("ANTHROPIC_API_KEY_2") or None
+    ANTHROPIC_API_KEY_3: str | None = os.getenv("ANTHROPIC_API_KEY_3") or None
 
     @property
-    def OPENAI_KEYS(self) -> list[str]:
-        return [k.strip() for k in (self.OPENAI_API_KEY_1, self.OPENAI_API_KEY_2, self.OPENAI_API_KEY_3) if k and k.strip()]
+    def ANTHROPIC_KEYS(self) -> list[str]:
+        return [k.strip() for k in (self.ANTHROPIC_API_KEY_1, self.ANTHROPIC_API_KEY_2, self.ANTHROPIC_API_KEY_3) if k and k.strip()]
 
     PROMPT_IDENTIFY_PARTIES: str = os.getenv(
         "PROMPT_IDENTIFY_PARTIES",
@@ -87,16 +85,16 @@ class Settings:
         "с полями: summary, key_terms, risks, ambiguities, fixes, questions, verdict, danger_score."
     )
     # === Стоимость 1к токенов в рублях===
-    OPENAI_GPT4O_BLEND_PER_1K_RUB: float = float(os.getenv("OPENAI_GPT4O_BLEND_PER_1K_RUB", "1.06"))
+    ANTHROPIC_BLEND_PER_1K_RUB: float = float(os.getenv("ANTHROPIC_BLEND_PER_1K_RUB", "1.06"))
 
     # === Верификация / OTP ===
     VERIFICATION_CODE_LENGTH: int = int(os.getenv("VERIFICATION_CODE_LENGTH", "6"))
     VERIFICATION_CODE_TTL_MINUTES: int = int(os.getenv("VERIFICATION_CODE_TTL_MINUTES", "15"))
+    MAX_RESEND_PER_HOUR: int = int(os.getenv("MAX_RESEND_PER_HOUR", "5"))
+    MAX_CODE_ATTEMPTS: int = int(os.getenv("MAX_CODE_ATTEMPTS", "5"))
 
-    # === Google OAuth ===
-    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
-    GOOGLE_CLIENT_SECRET: str | None = os.getenv("GOOGLE_CLIENT_SECRET") or None
-
+    # === CORS (список origin через запятую; пусто = локальный dev) ===
+    CORS_ORIGINS: str = os.getenv("CORS_ORIGINS", "")
 
     # === Разбиение текста и параллелизм ===
     ANALYSIS_CHUNK_CHARS: int = int(os.getenv("ANALYSIS_CHUNK_CHARS", "10000"))

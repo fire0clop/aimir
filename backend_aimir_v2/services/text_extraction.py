@@ -41,7 +41,7 @@ def _extract_text(path: Path) -> Optional[str]:
     try:
         if ext == ".pdf":
             t = _extract_text_from_pdf(path)
-            _log_backend(path, "pdfminer" if t.strip() else "pdfminer(empty)")
+            _log_backend(path, "pdf(pymupdf/pdfminer)" if t.strip() else "pdf(empty)")
             return t
         if ext == ".docx":
             t = _extract_text_from_docx(path)
@@ -57,6 +57,18 @@ def _extract_text(path: Path) -> Optional[str]:
 
 
 def _extract_text_from_pdf(path: Path) -> str:
+    # Основной движок — PyMuPDF (fitz): сохраняет корректный порядок чтения.
+    # pdfminer на ряде PDF (двухколоночная верстка, выравнивание по ширине)
+    # перемешивает текст, из-за чего пункты выглядят «обрезанными».
+    try:
+        import fitz  # PyMuPDF
+        with fitz.open(str(path)) as doc:
+            text = "".join(page.get_text("text") for page in doc)
+        if text.strip():
+            return text.strip()
+    except Exception:
+        pass
+    # Фолбэк — pdfminer (если PyMuPDF недоступен или не смог прочитать файл).
     return (pdf_extract_text(str(path)) or "").strip()
 
 

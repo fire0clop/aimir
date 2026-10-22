@@ -424,6 +424,7 @@ def revenue_timeseries(
             BillingTransaction.kind.label("kind"),
             func.sum(BillingTransaction.amount_rub).label("amount_rub"),
         )
+        .filter(BillingTransaction.applied.is_(True))
         .filter(BillingTransaction.created_at >= from_dt)
         .filter(BillingTransaction.created_at < to_dt)
         .group_by(BillingTransaction.kind)

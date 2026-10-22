@@ -1,6 +1,7 @@
-from openai import OpenAI
+from anthropic import Anthropic
+import os
 
-client = OpenAI(api_key="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")
+client = Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
 
 models = client.models.list()
 

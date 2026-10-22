@@ -4,32 +4,48 @@ import re
 from typing import Tuple, List
 
 
+_CLAUSE_NUM_RE = re.compile(
+    r'^\s*(\d+(?:\.\d+)+)[\.\s]|'   # 1.1 / 1.1.2 (многоуровневый)
+    r'^\s*(\d+)\.\s',                 # 5. (одноуровневый)
+    re.IGNORECASE,
+)
+
+_CLAUSE_START_RE = re.compile(
+    r'^\s*('
+    r'\d+\.\s|'
+    r'\d+\.\d[\d\.]*[\.\s]|'
+    r'\d+\)\s|'
+    r'п\.?\s*\d|'
+    r'пункт\s+\d|'
+    r'раздел\s+\w|'
+    r'статья\s+\d|'
+    r'глава\s+\d|'
+    r'§\s*\d'
+    r')',
+    re.IGNORECASE,
+)
+
+
+def _extract_clause_label(text: str) -> str | None:
+    """Extract the actual clause number (e.g. '2.12', '5') from start of paragraph."""
+    m = re.match(r'^\s*(\d+(?:\.\d+)+)', text)
+    if m:
+        return m.group(1)
+    m = re.match(r'^\s*(\d+)\.\s', text)
+    if m:
+        return m.group(1)
+    return None
+
+
 def number_paragraphs(text: str) -> Tuple[str, List[str]]:
     """
-    Splits contract text into logical units and numbers them [1], [2], ...
+    Splits contract text into logical units and numbers them.
+    Uses real clause numbers as labels when detected (e.g. [2.12]),
+    falls back to sequential [N] for unlabelled paragraphs.
     Returns (numbered_text, list_of_paragraphs).
-
-    The numbered_text is what goes to GPT — model is told to cite [N] when quoting.
-    The list_of_paragraphs is used for citation verification.
     """
     if not text or not text.strip():
         return text, []
-
-    # Pattern: a line that starts a new clause/section
-    clause_start = re.compile(
-        r'^\s*('
-        r'\d+\.\s|'              # 1. (with space)
-        r'\d+\.\d[\d\.]*\s|'    # 1.1 or 1.1.2 (with space)
-        r'\d+\)\s|'             # 1)
-        r'п\.?\s*\d|'           # п.1 or п. 1
-        r'пункт\s+\d|'          # пункт 1
-        r'раздел\s+\w|'         # раздел 1 / раздел I
-        r'статья\s+\d|'         # статья 1
-        r'глава\s+\d|'          # глава 1
-        r'§\s*\d'               # § 1
-        r')',
-        re.IGNORECASE,
-    )
 
     raw_lines = text.split('\n')
     paragraphs: List[str] = []
@@ -46,8 +62,7 @@ def number_paragraphs(text: str) -> Tuple[str, List[str]]:
                 current_parts = []
             continue
 
-        # New clause → flush buffer and start fresh
-        if clause_start.match(stripped) and current_parts:
+        if _CLAUSE_START_RE.match(stripped) and current_parts:
             combined = ' '.join(current_parts)
             if len(combined) >= 20:
                 paragraphs.append(combined)
@@ -60,64 +75,106 @@ def number_paragraphs(text: str) -> Tuple[str, List[str]]:
         if len(combined) >= 20:
             paragraphs.append(combined)
 
-    # Fallback: if clause detection found nothing, split by double newlines
     if not paragraphs:
         raw_paras = [p.strip() for p in text.split('\n\n') if len(p.strip()) >= 20]
         paragraphs = raw_paras if raw_paras else [text.strip()]
 
-    # Build numbered output
-    numbered_lines = [f'[{i}] {p}' for i, p in enumerate(paragraphs, 1)]
+    # Build numbered output — use real clause number if available
+    numbered_lines = []
+    for i, p in enumerate(paragraphs, 1):
+        label = _extract_clause_label(p) or str(i)
+        numbered_lines.append(f'[{label}] {p}')
+
     return '\n\n'.join(numbered_lines), paragraphs
 
 
 def verify_citations(issues: list, paragraphs: List[str]) -> list:
     """
-    For each issue, checks if the quoted text actually appears in the contract.
-    If the citation is wrong, tries to find the correct paragraph.
-    Keeps the issue even if citation can't be verified (analysis itself may still be valid).
+    Grounds every citation in the ACTUAL contract text.
+
+    Strategy per issue:
+      1. If the model's quote appears verbatim in the referenced paragraph — keep it.
+      2. If it appears verbatim in some other paragraph — keep it, relabel the clause.
+      3. Otherwise the quote is hallucinated / paraphrased / mis-ordered →
+         replace `text` with the real paragraph text (source of truth), so the
+         user never sees a fabricated or "truncated"-looking quote.
+
+    The displayed quote thus always comes from the document, not the model.
     """
     if not issues or not paragraphs:
         return issues
 
-    para_lower = [p.lower() for p in paragraphs]
+    norm_paras = [_normalize_ws(p) for p in paragraphs]
+
+    # Build label→index map for real clause numbers
+    label_to_idx: dict[str, int] = {}
+    for i, p in enumerate(paragraphs):
+        label = _extract_clause_label(p)
+        if label:
+            label_to_idx[label] = i
+
+    def _label_for(idx: int) -> str:
+        return _extract_clause_label(paragraphs[idx]) or str(idx + 1)
+
     result = []
 
     for issue in issues:
         if not isinstance(issue, dict):
             continue
 
+        issue = dict(issue)  # never mutate caller's dict
         quote = (issue.get('text') or '').strip()
+        nquote = _normalize_ws(quote)
 
-        if not quote or len(quote) < 15:
+        # Resolve the paragraph the model referenced via [label]
+        ref_idx = None
+        m = re.search(r'\[([^\]]+)\]', issue.get('clause') or '')
+        if m:
+            ref_label = m.group(1).strip()
+            if ref_label in label_to_idx:
+                ref_idx = label_to_idx[ref_label]
+            else:
+                try:
+                    n = int(ref_label)
+                    if 1 <= n <= len(paragraphs):
+                        ref_idx = n - 1
+                except ValueError:
+                    pass
+
+        # Quote too short to verify — leave as is (rare)
+        if len(nquote) < 12:
             result.append(issue)
             continue
 
-        quote_lower = quote.lower()
+        # 1) Genuine quote inside the referenced paragraph — trust it
+        if ref_idx is not None and nquote in norm_paras[ref_idx]:
+            result.append(issue)
+            continue
 
-        # Extract ref number like [42]
-        ref = (issue.get('clause') or '')
-        ref_num = None
-        m = re.search(r'\[(\d+)\]', ref)
-        if m:
-            ref_num = int(m.group(1))
+        # 2) Genuine quote found in a different paragraph — keep, fix the label
+        found_idx = next((i for i, np_ in enumerate(norm_paras) if nquote in np_), None)
+        if found_idx is not None:
+            issue['clause'] = f'[{_label_for(found_idx)}]'
+            result.append(issue)
+            continue
 
-        # Check if quote appears in the referenced paragraph
-        if ref_num and 1 <= ref_num <= len(paragraphs):
-            target = para_lower[ref_num - 1]
-            if _text_overlap(quote_lower, target) >= 0.4:
-                result.append(issue)
-                continue
-
-        # Try to find the quote in any paragraph
-        best_para = _find_best_paragraph(quote_lower, para_lower)
-
-        if best_para is not None:
-            issue = dict(issue)
-            issue['clause'] = f'[{best_para + 1}]'
-
-        result.append(issue)
+        # 3) Quote not present verbatim anywhere → ground it to real paragraph text
+        target_idx = ref_idx
+        if target_idx is None:
+            target_idx = _find_best_paragraph(nquote, norm_paras)
+        if target_idx is not None:
+            issue['text'] = paragraphs[target_idx].strip()
+            issue['clause'] = f'[{_label_for(target_idx)}]'
+            result.append(issue)
+        # else: quote references no real clause and matches no paragraph →
+        # treat as a fabricated citation and drop it (never show invented quotes).
 
     return result
+
+
+def _normalize_ws(s: str) -> str:
+    """Lowercase and collapse all whitespace — for robust substring matching."""
+    return re.sub(r'\s+', ' ', (s or '')).strip().lower()
 
 
 def _text_overlap(a: str, b: str) -> float:

@@ -7,20 +7,17 @@ from models.user import User
 from models.verification import PendingRegistration
 from models.password_reset import PasswordReset
 
-from schemas.user import TelegramAuth
 from schemas.user import (
     UserLogin, TokenPair, RefreshIn,
     RegisterStart, RegisterConfirm, RegisterResend,
-    PasswordStart, PasswordResend, PasswordVerify, PasswordComplete, GoogleLogin,
+    PasswordStart, PasswordResend, PasswordVerify, PasswordComplete,
 )
 
-from core.google_oauth import verify_google_token
 from core.security import hash_password, verify_password, create_token_pair, decode_token
 from core.otp import gen_code, now_utc, expires_at
 from core.mailer import send_email
 from core.config import settings
 from core.deps import get_current_user
-from core.telegram_auth import check_telegram_auth
 from schemas.user import TelegramIdUpsert
 from sqlalchemy import and_
 
@@ -96,6 +93,12 @@ def register_confirm(payload: RegisterConfirm, db: Session = Depends(get_db)):
         db.commit()
         raise HTTPException(status_code=400, detail="Code expired")
 
+    # защита от перебора кода
+    if pr.attempts >= settings.MAX_CODE_ATTEMPTS:
+        db.delete(pr)
+        db.commit()
+        raise HTTPException(status_code=429, detail="Too many attempts, request a new code")
+
     # код
     if pr.code != payload.code:
         pr.attempts += 1
@@ -112,72 +115,41 @@ def register_confirm(payload: RegisterConfirm, db: Session = Depends(get_db)):
     access, refresh = create_token_pair(str(user.id))
     return {"access_token": access, "refresh_token": refresh}
 
-# --- Логин / refresh / me (без изменений) -------------------------
+# --- Логин / refresh / me -------------------------
 @router.post("/login", response_model=TokenPair)
 def login_user(payload: UserLogin, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.email == payload.email).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Неверный e-mail или пароль")
 
-    # если пользователя нет ИЛИ у него нет пароля (Google-only) ИЛИ пароль не совпал
-    if not user or not user.password or not verify_password(payload.password, user.password):
+    # Старые Google-аккаунты (google_id есть, пароль так и не задан):
+    # вход только по e-mail, пароль не требуется
+    if user.google_id and not user.password:
+        access, refresh = create_token_pair(str(user.id))
+        return {"access_token": access, "refresh_token": refresh}
+
+    if not user.password or not verify_password(payload.password, user.password):
         raise HTTPException(status_code=401, detail="Неверный e-mail или пароль")
 
     access, refresh = create_token_pair(str(user.id))
     return {"access_token": access, "refresh_token": refresh}
 
 @router.post("/refresh", response_model=TokenPair)
-def refresh_tokens(body: RefreshIn):
+def refresh_tokens(body: RefreshIn, db: Session = Depends(get_db)):
     payload = decode_token(body.refresh_token)
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
+    # access-токен нельзя использовать как refresh
+    # (старые токены без поля type тоже принимаем — иначе разлогинит всех разом)
+    if payload.get("type") not in (None, "refresh"):
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
     user_id = payload.get("sub")
+    if not user_id or not db.query(User).filter(User.id == user_id).first():
+        raise HTTPException(status_code=401, detail="Invalid or expired refresh token")
+
     access, refresh = create_token_pair(user_id)
-    return {"access_token": access, "refresh_token": refresh}
-
-@router.post("/login/google", response_model=TokenPair)
-def login_google(payload: GoogleLogin, db: Session = Depends(get_db)):
-    # 1. Проверяем токен у Google
-    info = verify_google_token(payload.id_token)
-    if not info:
-        raise HTTPException(status_code=401, detail="Invalid Google token")
-
-    # 2. Проверяем, что email есть и подтверждён
-    email = info.get("email")
-    email_verified = info.get("email_verified", False)
-    google_id = info["sub"]
-    name = info.get("name") or (email.split("@")[0] if email else "")
-
-    if not email:
-        raise HTTPException(status_code=400, detail="Google account has no email")
-    if not email_verified:
-        raise HTTPException(status_code=400, detail="Email not verified by Google")
-
-    # 3. Ищем пользователя сначала по google_id
-    user = db.query(User).filter(User.google_id == google_id).first()
-
-    # 4. Если не нашли — пробуем по email (чтобы привязать Google к уже существующему аккаунту)
-    if not user:
-        user = db.query(User).filter(User.email == email).first()
-        if user:
-            user.google_id = google_id
-            if not user.name and name:
-                user.name = name
-            db.commit()
-            db.refresh(user)
-
-    # 5. Если всё ещё нет пользователя — создаём нового
-    if not user:
-        user = User(
-            name=name or "",
-            email=email,
-            password=None,       # у чисто Google-юзера пароля может и не быть
-            google_id=google_id,
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-
-    # 6. Возвращаем те же токены, что и при обычном логине
-    access, refresh = create_token_pair(str(user.id))
     return {"access_token": access, "refresh_token": refresh}
 
 @router.get("/me")
@@ -262,6 +234,9 @@ def password_reset_verify(payload: PasswordVerify, db: Session = Depends(get_db)
     if rec.expires_at < now_utc():
         db.delete(rec); db.commit()
         raise HTTPException(status_code=400, detail="Code expired")
+    if rec.attempts >= settings.MAX_CODE_ATTEMPTS:
+        db.delete(rec); db.commit()
+        raise HTTPException(status_code=429, detail="Too many attempts, request a new code")
     if rec.code != payload.code:
         rec.attempts += 1; db.commit()
         raise HTTPException(status_code=400, detail="Invalid code")
@@ -275,6 +250,9 @@ def password_reset_complete(payload: PasswordComplete, db: Session = Depends(get
     if rec.expires_at < now_utc():
         db.delete(rec); db.commit()
         raise HTTPException(status_code=400, detail="Code expired")
+    if rec.attempts >= settings.MAX_CODE_ATTEMPTS:
+        db.delete(rec); db.commit()
+        raise HTTPException(status_code=429, detail="Too many attempts, request a new code")
     if rec.code != payload.code:
         rec.attempts += 1; db.commit()
         raise HTTPException(status_code=400, detail="Invalid code")
@@ -289,63 +267,6 @@ def password_reset_complete(payload: PasswordComplete, db: Session = Depends(get
     db.delete(rec)
     db.commit()
     return {"detail": "Password updated"}
-@router.post("/login/telegram", response_model=TokenPair)
-def login_telegram(payload: TelegramAuth, db: Session = Depends(get_db)):
-    data = payload.dict()
-
-    # 1. Проверка подписи Telegram
-    if not check_telegram_auth(data.copy()):
-        raise HTTPException(status_code=400, detail="Invalid Telegram auth data")
-
-    telegram_id = str(payload.id)
-
-    # 2. Пытаемся найти пользователя по telegram_id
-    user = db.query(User).filter(User.telegram_id == telegram_id).first()
-
-    # 3. Если юзер не найден — создаём "telegram-only" аккаунт
-    if not user:
-        # Технический email, чтобы не ломать NOT NULL constraint
-        technical_email = f"tg_{telegram_id}@example.local"
-
-        user = User(
-            name=payload.first_name,
-            email=technical_email,
-            password=None,      # нет пароля
-            google_id=None,
-            telegram_id=telegram_id,
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-
-    # 4. Выдаём токены
-    access, refresh = create_token_pair(str(user.id))
-    return {"access_token": access, "refresh_token": refresh}
-
-@router.post("/link/telegram", status_code=200)
-def link_telegram(
-    payload: TelegramAuth,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    data = payload.dict()
-
-    # 1. Проверка подписи
-    if not check_telegram_auth(data.copy()):
-        raise HTTPException(status_code=400, detail="Invalid Telegram auth data")
-
-    telegram_id = str(payload.id)
-
-    # 2. Проверяем, не привязан ли этот Telegram уже к другому пользователю
-    existing = db.query(User).filter(User.telegram_id == telegram_id).first()
-    if existing and existing.id != current_user.id:
-        raise HTTPException(status_code=409, detail="This Telegram is already linked to another account")
-
-    # 3. Привязываем к текущему юзеру
-    current_user.telegram_id = telegram_id
-    db.commit()
-
-    return {"detail": "Telegram account linked"}
 @router.put("/telegram-id", status_code=200)
 def set_telegram_id(
     payload: TelegramIdUpsert,

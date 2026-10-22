@@ -39,6 +39,26 @@ def _ensure_dashboard_access(user: User):
         raise HTTPException(status_code=403, detail="Access denied")
 
 
+def _mask_email(email: str) -> str:
+    """a***@example.com — публично полный email автора не отдаём."""
+    local, _, domain = (email or "").partition("@")
+    if not domain:
+        return "***"
+    return f"{local[:1]}***@{domain}"
+
+
+def _public_review(r: Review) -> dict:
+    return {
+        "id": r.id,
+        "email": _mask_email(r.email),
+        "title": r.title,
+        "description": r.description,
+        "rating": r.rating,
+        "published": r.published,
+        "created_at": r.created_at,
+    }
+
+
 # ----------------- public ------------------
 @router.post(
     "", response_model=ReviewOut, status_code=status.HTTP_201_CREATED,
@@ -73,7 +93,7 @@ def list_published_reviews(
     q = db.query(Review).filter(Review.published.is_(True)).order_by(Review.id.desc())
     total = q.count()
     items = q.limit(limit).offset(offset).all()
-    return {"total": total, "items": items}
+    return {"total": total, "items": [_public_review(r) for r in items]}
 
 
 # ----------------- admin (whitelist) -----------------
@@ -187,4 +207,4 @@ def get_published_review(review_id: int, db: Session = Depends(get_db)):
     ).first()
     if not r:
         raise HTTPException(status_code=404, detail="Review not found")
-    return r
+    return _public_review(r)
