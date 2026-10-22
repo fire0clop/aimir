@@ -9,14 +9,14 @@ import styles from "./Billing.module.css";
 import {
     getPrices,
     getBillingStatus,
-    subscribe,      // старый способ (без оплаты) — будем использовать как fallback
-    addCredits,     // старый способ (без оплаты) — fallback
-    subscribePay,   // новый init через T-Банк
-    creditsPay,     // новый init через T-Банк
+    subscribe,
+    addCredits,
+    subscribePay,
+    creditsPay,
 } from "../api/billing";
 import { setTelegramId, deleteTelegramId } from "../api/users";
 
-// ID счётчика Яндекс.Метрики
+// ─── Метрика ──────────────────────────────────────────────────
 const METRIKA_ID = 104333423;
 
 function trackGoal(name, params) {
@@ -24,16 +24,16 @@ function trackGoal(name, params) {
     if (!window.ym) return;
     window.ym(METRIKA_ID, "reachGoal", name, params);
 }
-// Резервные цены из фронтового .env (если сервер не даст)
-const FE_SUB_MONTH = Number(process.env.REACT_APP_SUB_PRICE_MONTH || process.env.SUB_PRICE_MONTH || 0);
-const FE_SUB_6M = Number(process.env.REACT_APP_SUB_PRICE_6M || process.env.SUB_PRICE_6M || 0);
-const FE_SUB_YEAR = Number(process.env.REACT_APP_SUB_PRICE_YEAR || process.env.SUB_PRICE_YEAR || 0);
-const FE_REQ_PRICE = Number(process.env.REACT_APP_REQUEST_PRICE || process.env.REQUEST_PRICE || 0);
 
-// Ключ терминала для integration.js (как в старом проекте)
+// ─── Резервные цены из .env ───────────────────────────────────
+const FE_SUB_MONTH = Number(process.env.REACT_APP_SUB_PRICE_MONTH || process.env.SUB_PRICE_MONTH || 0);
+const FE_SUB_6M    = Number(process.env.REACT_APP_SUB_PRICE_6M    || process.env.SUB_PRICE_6M    || 0);
+const FE_SUB_YEAR  = Number(process.env.REACT_APP_SUB_PRICE_YEAR  || process.env.SUB_PRICE_YEAR  || 0);
+const FE_REQ_PRICE = Number(process.env.REACT_APP_REQUEST_PRICE   || process.env.REQUEST_PRICE   || 0);
+
 const TBANK_TERMINAL_KEY = process.env.REACT_APP_TBANK_TERMINAL_KEY || "";
 
-/* динамическая загрузка скрипта T-Банка */
+// ─── Загрузка скрипта T-Банка ─────────────────────────────────
 function loadTbankScript() {
     return new Promise((resolve, reject) => {
         if (window.PaymentIntegration) return resolve();
@@ -46,6 +46,51 @@ function loadTbankScript() {
     });
 }
 
+// ─── CheckIcon ────────────────────────────────────────────────
+function CheckIcon() {
+    return (
+        <svg className={styles.checkIcon} viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+        </svg>
+    );
+}
+
+// ─── Plan card ────────────────────────────────────────────────
+function Plan({ title, price, note, features, onClick, disabled, best }) {
+    return (
+        <div className={[styles.plan, best ? styles.planBest : ""].join(" ")}>
+            {best && <div className={styles.ribbon}>Популярный</div>}
+            <div className={styles.planTitle}>{title}</div>
+            <div className={styles.planPrice}>{price || 0} <span className={styles.priceCur}>₽</span></div>
+            <div className={styles.planNote}>{note}</div>
+            {features && features.length > 0 && (
+                <ul className={styles.planFeatures}>
+                    {features.map((f, i) => (
+                        <li key={i} className={styles.planFeature}>
+                            <CheckIcon />
+                            {f}
+                        </li>
+                    ))}
+                </ul>
+            )}
+            <div className={styles.planCta}>
+                <button
+                    className={[styles.primary, styles.planCtaFull, !best ? styles.planBtnGhost : ""].join(" ")}
+                    onClick={() => {
+                        trackGoal("go_billing");
+                        onClick();
+                    }}
+                    disabled={disabled}
+                >
+                    Оформить
+                </button>
+            </div>
+        </div>
+    );
+}
+
+// ─── Main component ────────────────────────────────────────────
 export default function Billing() {
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
@@ -55,11 +100,9 @@ export default function Billing() {
 
     const [qty, setQty] = useState(1);
 
-    // === состояние модалки с iframe оплаты ===
     const [frameOpen, setFrameOpen] = useState(false);
     const iframeContainerRef = useRef(null);
 
-    // === состояния для Telegram-модалки ===
     const [tgOpen, setTgOpen] = useState(false);
     const [tgId, setTgId] = useState("");
     const [tgBusy, setTgBusy] = useState(false);
@@ -85,7 +128,6 @@ export default function Billing() {
         loadAll();
     }, []);
 
-    // При открытии модалки Telegram — подставлять текущий telegram_id
     useEffect(() => {
         if (!tgOpen) return;
         setTgErr("");
@@ -97,47 +139,45 @@ export default function Billing() {
         return Math.max(1, Number(qty || 1)) * Number(price || 0);
     }, [qty, prices]);
 
-    // ----------------- init iframe оплаты (T-Банк) -----------------
+    // ─── Init iframe оплаты ───────────────────────────────────
     const initIframePayment = useCallback(async (paymentStartCallback) => {
         if (!TBANK_TERMINAL_KEY) {
-            throw new Error("Не задан REACT_APP_TBANK_TERMINAL_KEY (T-Банк не сконфигурирован на фронте)");
+            throw new Error("Не задан REACT_APP_TBANK_TERMINAL_KEY");
         }
 
         await loadTbankScript();
 
-        const container = iframeContainerRef.current;
-        if (!container) throw new Error("Не найден контейнер платежной формы");
+        // контейнер рендерится в той же итерации, что и setFrameOpen(true) —
+        // даём React время смонтировать модалку
+        let container = iframeContainerRef.current;
+        for (let i = 0; i < 20 && !container; i++) {
+            await new Promise((r) => setTimeout(r, 50));
+            container = iframeContainerRef.current;
+        }
+        if (!container) throw new Error("Не найден контейнер платёжной формы");
         container.innerHTML = "";
 
-        const initConfig = {
+        await window.PaymentIntegration.init({
             terminalKey: TBANK_TERMINAL_KEY,
             product: "eacq",
             features: {
                 iframe: {
                     container,
-                    paymentStartCallback, // должен вернуть PaymentURL (string)
+                    paymentStartCallback,
                 },
             },
-        };
-
-        await window.PaymentIntegration.init(initConfig);
+        });
     }, []);
 
-    // ----------------- Подписка -----------------
+    // ─── Подписка ─────────────────────────────────────────────
     const onSubscribe = async (plan) => {
-        // fallback: если T-Банк на фронте не настроен — работаем по старой схеме
         if (!hasTbank) {
             try {
                 setBusy(true);
                 setErr("");
                 const s = await subscribe(plan);
                 setStatus(s);
-                // метрика: успешная подписка (fallback)
-                trackGoal("payment_success", {
-                    kind: "sub",
-                    plan,
-                    source: "fallback",
-                });
+                trackGoal("payment_success", { kind: "sub", plan, source: "fallback" });
             } catch (e) {
                 setErr(parseErr(e));
             } finally {
@@ -146,34 +186,26 @@ export default function Billing() {
             return;
         }
 
-        // новая схема: init через T-Банк + iframe
         try {
             setBusy(true);
             setErr("");
+            sessionStorage.removeItem("pendingPayment"); // не тащим хвост прошлой попытки
             setFrameOpen(true);
 
             await initIframePayment(async () => {
-                const data = await subscribePay(plan); // { payment_url, ... }
+                const data = await subscribePay(plan);
 
                 if (data?.ok && !data?.payment_url) {
-                    // теоретический мок-режим — на всякий случай
                     setFrameOpen(false);
                     await loadAll();
                     return "about:blank";
                 }
 
-                if (!data?.payment_url) {
-                    throw new Error("payment_url не получен");
-                }
+                if (!data?.payment_url) throw new Error("payment_url не получен");
 
-                // запоминаем, что ждём подписку
                 sessionStorage.setItem(
                     "pendingPayment",
-                    JSON.stringify({
-                        kind: "sub",
-                        plan,
-                        ts: Date.now(),
-                    })
+                    JSON.stringify({ kind: "sub", plan, ts: Date.now() })
                 );
 
                 return data.payment_url;
@@ -186,11 +218,10 @@ export default function Billing() {
         }
     };
 
-    // ----------------- Кредиты -----------------
+    // ─── Кредиты ──────────────────────────────────────────────
     const onAddCredits = async () => {
         const n = Math.max(1, Math.floor(Number(qty || 1)));
 
-        // fallback: старый способ без оплаты
         if (!hasTbank) {
             try {
                 setBusy(true);
@@ -198,12 +229,7 @@ export default function Billing() {
                 const s = await addCredits(n);
                 setStatus(s);
                 setQty(1);
-                // метрика: успешная покупка кредитов (fallback)
-                trackGoal("payment_success", {
-                    kind: "credits",
-                    qty: n,
-                    source: "fallback",
-                });
+                trackGoal("payment_success", { kind: "credits", qty: n, source: "fallback" });
             } catch (e) {
                 setErr(parseErr(e));
             } finally {
@@ -212,33 +238,26 @@ export default function Billing() {
             return;
         }
 
-        // новая схема: через T-Банк
         try {
             setBusy(true);
             setErr("");
+            sessionStorage.removeItem("pendingPayment"); // не тащим хвост прошлой попытки
             setFrameOpen(true);
 
             await initIframePayment(async () => {
-                const data = await creditsPay(n); // { payment_url, quantity, ... }
+                const data = await creditsPay(n);
 
                 if (data?.ok && !data?.payment_url) {
-                    // моковый сценарий
                     setFrameOpen(false);
                     await loadAll();
                     return "about:blank";
                 }
 
-                if (!data?.payment_url) {
-                    throw new Error("payment_url не получен");
-                }
+                if (!data?.payment_url) throw new Error("payment_url не получен");
 
                 sessionStorage.setItem(
                     "pendingPayment",
-                    JSON.stringify({
-                        kind: "credits",
-                        qty: n,
-                        ts: Date.now(),
-                    })
+                    JSON.stringify({ kind: "credits", qty: n, ts: Date.now() })
                 );
 
                 return data.payment_url;
@@ -251,7 +270,7 @@ export default function Billing() {
         }
     };
 
-    // -------- представление периода подписки --------
+    // ─── Период подписки ──────────────────────────────────────
     const periodText = (() => {
         const start = status?.subscription_start;
         const end = status?.subscription_end;
@@ -260,7 +279,9 @@ export default function Billing() {
         return `${fmtDate(start)} — ${fmtDate(end)}`;
     })();
 
-    // ----------------- Пуллинг статуса при открытом iframe -----------------
+    // ─── Пуллинг статуса при открытом iframe ─────────────────
+    // Важно: pendingPayment записывается ПОЗЖЕ открытия модалки (внутри
+    // paymentStartCallback), поэтому читаем его на каждом тике, а не один раз.
     useEffect(() => {
         if (!frameOpen) return;
 
@@ -268,27 +289,14 @@ export default function Billing() {
         let aborted = false;
 
         (async () => {
-            const pendingRaw = sessionStorage.getItem("pendingPayment");
-            if (!pendingRaw) return;
-
-            let pending;
-            try {
-                pending = JSON.parse(pendingRaw);
-            } catch {
-                return;
-            }
-
+            // базовый статус фиксируем сразу — до того, как платёж мог пройти
             let baseStatus = null;
-            try {
-                baseStatus = await getBillingStatus();
-            } catch {
-                // если не получилось — просто будем проверять только текущее
-            }
+            try { baseStatus = await getBillingStatus(); } catch {}
             const baseCredits = Number(baseStatus?.credits ?? 0);
             const baseEnd = baseStatus?.subscription_end || null;
 
             const startedAt = Date.now();
-            const deadlineMs = 2 * 60 * 1000; // 2 минуты
+            const deadlineMs = 10 * 60 * 1000; // ввод карты + 3DS занимают время
 
             const tick = async () => {
                 if (aborted) return;
@@ -296,46 +304,36 @@ export default function Billing() {
                     clearInterval(timer);
                     return;
                 }
+
+                const pendingRaw = sessionStorage.getItem("pendingPayment");
+                if (!pendingRaw) return; // платёж ещё не инициирован
+
+                let pending;
+                try { pending = JSON.parse(pendingRaw); } catch { return; }
+
                 try {
                     const cur = await getBillingStatus();
                     const curCredits = Number(cur?.credits ?? 0);
                     const curEnd = cur?.subscription_end || null;
 
                     let done = false;
-
-                    if (pending.kind === "credits" && curCredits > baseCredits) {
-                        done = true;
-                    }
-                    if (pending.kind === "sub" && curEnd && curEnd !== baseEnd) {
-                        done = true;
-                    }
+                    if (pending.kind === "credits" && curCredits > baseCredits) done = true;
+                    if (pending.kind === "sub" && curEnd && curEnd !== baseEnd) done = true;
 
                     if (done) {
                         clearInterval(timer);
-                        // метрика: успешная оплата через T-Банк
                         if (pending.kind === "sub") {
-                            trackGoal("payment_success", {
-                                kind: "sub",
-                                plan: pending.plan,
-                                source: "tbank",
-                            });
+                            trackGoal("payment_success", { kind: "sub", plan: pending.plan, source: "tbank" });
                         } else if (pending.kind === "credits") {
-                            trackGoal("payment_success", {
-                                kind: "credits",
-                                qty: pending.qty,
-                                source: "tbank",
-                            });
+                            trackGoal("payment_success", { kind: "credits", qty: pending.qty, source: "tbank" });
                         }
                         sessionStorage.removeItem("pendingPayment");
                         setFrameOpen(false);
-                        setStatus(cur); // обновим статус на странице
+                        setStatus(cur);
                     }
-                } catch {
-                    // просто игнорируем ошибку при одном тике
-                }
+                } catch {}
             };
 
-            await tick();
             timer = setInterval(tick, 2000);
         })();
 
@@ -350,37 +348,39 @@ export default function Billing() {
         if (!frameOpen) return;
         const prevOverflow = document.body.style.overflow;
         document.body.style.overflow = "hidden";
-        return () => {
-            document.body.style.overflow = prevOverflow;
-        };
+        return () => { document.body.style.overflow = prevOverflow; };
     }, [frameOpen]);
 
-    // закрытие модалки по Escape
+    // закрытие по Escape
     useEffect(() => {
         if (!frameOpen) return;
-        const onKeyDown = (e) => {
-            if (e.key === "Escape") setFrameOpen(false);
-        };
+        const onKeyDown = (e) => { if (e.key === "Escape") setFrameOpen(false); };
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
     }, [frameOpen]);
 
+    // ─── Render ───────────────────────────────────────────────
     return (
         <div className={styles.page}>
             <div className={styles.wrap}>
-                {/* Кнопка привязки Telegram над заголовком */}
-                <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+
+                {/* top row */}
+                <div className={styles.topRow}>
+                    <h1 className={styles.title}>Биллинг</h1>
                     <button
-                        className={styles.primary}
+                        className={styles.ghost}
                         type="button"
                         onClick={() => setTgOpen(true)}
                         disabled={loading || busy}
                     >
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="22" y1="2" x2="11" y2="13" />
+                            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                        </svg>
                         Привязать Telegram
                     </button>
                 </div>
-
-                <h1 className={styles.title}>Биллинг</h1>
 
                 {err && <div className={styles.alert}>{err}</div>}
 
@@ -388,13 +388,13 @@ export default function Billing() {
                     <div className={styles.skel}>Загружаем цены и статус…</div>
                 ) : (
                     <>
-                        {/* Статус */}
+                        {/* ── 1. Статус ── */}
                         <section className={styles.card}>
                             <h2 className={styles.h2}>Ваш статус</h2>
                             <div className={styles.grid2}>
                                 <div>
                                     <div className={styles.kv}>
-                                        <div className={styles.k}>Подписка:</div>
+                                        <div className={styles.k}>Подписка</div>
                                         <div className={styles.v}>
                                             {status?.active ? (
                                                 <span className={styles.badgeOk}>Активна</span>
@@ -406,74 +406,80 @@ export default function Billing() {
                                         </div>
                                     </div>
                                     <div className={styles.kv}>
-                                        <div className={styles.k}>Период:</div>
+                                        <div className={styles.k}>Период</div>
                                         <div className={styles.v}>{periodText}</div>
                                     </div>
                                 </div>
                                 <div>
                                     <div className={styles.kv}>
-                                        <div className={styles.k}>Кредиты (запросы):</div>
+                                        <div className={styles.k}>Кредиты</div>
                                         <div className={styles.v}>
-                                            <b>{status?.credits ?? 0}</b>
+                                            <span className={styles.creditsCount}>{status?.credits ?? 0}</span>
+                                            <span className={styles.creditsUnit}>запросов</span>
                                         </div>
                                     </div>
                                     <div className={styles.kv}>
-                                        <div className={styles.k}>Telegram ID:</div>
+                                        <div className={styles.k}>Telegram ID</div>
                                         <div className={styles.v}>
-                                            <b>{status?.telegram_id || "не привязан"}</b>
+                                            {status?.telegram_id
+                                                ? <b>{status.telegram_id}</b>
+                                                : <span style={{ color: "var(--muted)" }}>не привязан</span>}
                                         </div>
                                     </div>
                                 </div>
                             </div>
                         </section>
 
-                        {/* Подписка */}
+                        {/* ── 2. Тарифы ── */}
                         <section className={styles.card}>
                             <h2 className={styles.h2}>Подписка</h2>
                             <div className={styles.plans}>
                                 <Plan
                                     title="1 месяц"
                                     price={prices?.sub_month ?? FE_SUB_MONTH}
-                                    note="Доступ ко всем функциям"
+                                    note="Полный доступ на 30 дней"
+                                    features={["Все анализы без ограничений", "Скачивание в .docx", "Приоритетная поддержка"]}
                                     onClick={() => onSubscribe("month")}
                                     disabled={busy}
                                 />
                                 <Plan
                                     title="6 месяцев"
                                     price={prices?.sub_6m ?? FE_SUB_6M}
-                                    note="Экономия по сравнению с месяцем"
+                                    note="Экономия по сравнению с помесячной оплатой"
+                                    features={["Все анализы без ограничений", "Скачивание в .docx", "Приоритетная поддержка", "Экономия ~15%"]}
                                     onClick={() => onSubscribe("6m")}
                                     disabled={busy}
                                 />
                                 <Plan
                                     title="12 месяцев"
                                     price={prices?.sub_year ?? FE_SUB_YEAR}
-                                    note="Лучшее предложение"
+                                    note="Лучшее предложение — максимальная экономия"
+                                    features={["Все анализы без ограничений", "Скачивание в .docx", "Приоритетная поддержка", "Экономия ~30%"]}
                                     onClick={() => onSubscribe("year")}
                                     disabled={busy}
                                     best
                                 />
                             </div>
-                            <div className={styles.hintRow}>
-                            </div>
                         </section>
 
-                        {/* Кредиты */}
+                        {/* ── 3. Кредиты ── */}
                         <section className={styles.card}>
-                            <h2 className={styles.h2}>Кредиты (разовые запросы)</h2>
+                            <h2 className={styles.h2}>Кредиты — разовые запросы</h2>
                             <div className={styles.creditsRow}>
                                 <div className={styles.qtyBlock}>
                                     <label className={styles.lbl}>Количество</label>
                                     <div className={styles.qtyLine}>
-                                        <button type="button" className={styles.qtyBtn} onClick={() => setQty(1)}>
-                                            1
-                                        </button>
-                                        <button type="button" className={styles.qtyBtn} onClick={() => setQty(5)}>
-                                            5
-                                        </button>
-                                        <button type="button" className={styles.qtyBtn} onClick={() => setQty(10)}>
-                                            10
-                                        </button>
+                                        {[1, 5, 10].map(n => (
+                                            <button
+                                                key={n}
+                                                type="button"
+                                                className={styles.qtyBtn}
+                                                onClick={() => setQty(n)}
+                                                disabled={busy}
+                                            >
+                                                {n}
+                                            </button>
+                                        ))}
                                         <input
                                             className={styles.qtyInput}
                                             type="number"
@@ -487,7 +493,7 @@ export default function Billing() {
 
                                 <div className={styles.costBlock}>
                                     <div className={styles.costLine}>
-                                        <span>Стоимость за 1 запрос:</span>
+                                        <span>За 1 запрос:</span>
                                         <b>{(prices?.request_price ?? FE_REQ_PRICE) || 0} ₽</b>
                                     </div>
                                     <div className={styles.costLine}>
@@ -507,13 +513,11 @@ export default function Billing() {
                                     >
                                         Купить кредиты
                                     </button>
-
-
                                 </div>
                             </div>
                             <div className={styles.hintRow}>
                                 <span className={styles.hint}>
-                                    Оплата происходит через T-Банк; после успешной оплаты кредиты начислятся автоматически.
+                                    Оплата через T-Банк. Кредиты начисляются автоматически после подтверждения оплаты.
                                 </span>
                             </div>
                         </section>
@@ -521,16 +525,14 @@ export default function Billing() {
                 )}
             </div>
 
-            {/* Модалка с iframe платёжной формы T-Банк */}
+            {/* ── Платёжный iframe ── */}
             {frameOpen && (
                 <div
                     className={styles.iframeOverlay}
                     role="dialog"
                     aria-modal="true"
                     aria-label="Платёжная форма"
-                    onMouseDown={(e) => {
-                        if (e.target === e.currentTarget) setFrameOpen(false);
-                    }}
+                    onMouseDown={(e) => { if (e.target === e.currentTarget) setFrameOpen(false); }}
                 >
                     <div className={styles.iframeCard}>
                         <button
@@ -540,24 +542,19 @@ export default function Billing() {
                         >
                             ×
                         </button>
-                        <div
-                            ref={iframeContainerRef}
-                            className={styles.iframeContainer}
-                        />
+                        <div ref={iframeContainerRef} className={styles.iframeContainer} />
                     </div>
                 </div>
             )}
 
-            {/* Модалка привязки Telegram */}
+            {/* ── Telegram модалка ── */}
             {tgOpen && (
                 <div
                     className={styles.iframeOverlay}
                     role="dialog"
                     aria-modal="true"
                     aria-label="Привязка Telegram"
-                    onMouseDown={(e) => {
-                        if (e.target === e.currentTarget) setTgOpen(false);
-                    }}
+                    onMouseDown={(e) => { if (e.target === e.currentTarget) setTgOpen(false); }}
                 >
                     <div className={styles.iframeCard}>
                         <button
@@ -569,44 +566,46 @@ export default function Billing() {
                             ×
                         </button>
 
-                        <h2 className={styles.h2}>Привязка Telegram</h2>
+                        <h2 className={styles.h2} style={{ marginBottom: 16 }}>Привязка Telegram</h2>
 
-                        <div className={styles.hintRow}>
+                        <div className={styles.hintRow} style={{ marginBottom: 16 }}>
                             <div className={styles.hint}>
                                 1) Открой бота:{" "}
                                 <a href="https://t.me/AIMir_Tech_bot" target="_blank" rel="noreferrer">
                                     @AIMir_Tech_bot
                                 </a>
                                 <br />
-                                2) Нажми <b>/start</b>, бот пришлёт твой Telegram ID
+                                2) Нажми <b>/start</b> — бот пришлёт твой Telegram ID
                                 <br />
-                                3) Вставь Telegram ID сюда и нажми «Сохранить»
+                                3) Вставь ID сюда и нажми «Сохранить»
                             </div>
                         </div>
 
-                        <div style={{ marginTop: 14 }}>
-                            <label className={styles.lbl}>Telegram ID</label>
-                            <input
-                                className={`${styles.qtyInput} ${styles.fullInput}`}
-                                value={tgId}
-                                onChange={(e) => setTgId(e.target.value)}
-                                placeholder="например: 123456789"
-                                inputMode="numeric"
-                            />
+                        <label className={styles.lbl}>Telegram ID</label>
+                        <input
+                            className={[styles.qtyInput, styles.fullInput].join(" ")}
+                            value={tgId}
+                            onChange={(e) => setTgId(e.target.value)}
+                            placeholder="например: 123456789"
+                            inputMode="numeric"
+                        />
 
-                            <div className={styles.hintRow}>
-                                <span className={styles.hint}>
-                                    Текущий:{" "}
-                                    <b>{status?.telegram_id ? String(status.telegram_id) : "не привязан"}</b>
-                                </span>
-                            </div>
+                        <div className={styles.hintRow}>
+                            <span className={styles.hint}>
+                                Текущий:{" "}
+                                <b>{status?.telegram_id ? String(status.telegram_id) : "не привязан"}</b>
+                            </span>
                         </div>
 
-                        {tgErr && <div className={styles.alert} style={{ marginTop: 12 }}>{tgErr}</div>}
+                        {tgErr && (
+                            <div className={styles.alert} style={{ marginTop: 12 }}>
+                                {tgErr}
+                            </div>
+                        )}
 
-                        <div style={{ display: "flex", gap: 10, marginTop: 14, justifyContent: "flex-end" }}>
+                        <div className={styles.tgActions}>
                             <button
-                                className={styles.qtyBtn}
+                                className={styles.ghost}
                                 type="button"
                                 disabled={tgBusy || !status?.telegram_id}
                                 onClick={async () => {
@@ -655,29 +654,7 @@ export default function Billing() {
     );
 }
 
-function Plan({ title, price, note, onClick, disabled, best }) {
-    return (
-        <div className={`${styles.plan} ${best ? styles.planBest : ""}`}>
-            {best && <div className={styles.ribbon}>хит</div>}
-            <div className={styles.planTitle}>{title}</div>
-            <div className={styles.planPrice}>{price || 0} ₽</div>
-            <div className={styles.planNote}>{note}</div>
-            <button
-                className={styles.primary}
-                onClick={() => {
-                    trackGoal("go_billing");
-                    onClick();
-                }}
-                disabled={disabled}
-            >
-                Оформить
-            </button>
-
-
-        </div>
-    );
-}
-
+// ─── Utils ────────────────────────────────────────────────────
 function fmtDate(d) {
     try {
         const dt = new Date(d);

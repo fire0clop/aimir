@@ -1,5 +1,6 @@
 // src/components/DashboardSubscriptions.jsx
 import React from "react";
+import s from "../pages/Dashboard.module.css";
 
 export default function DashboardSubscriptions({ subscriptions }) {
     const subs = subscriptions || {};
@@ -28,95 +29,47 @@ export default function DashboardSubscriptions({ subscriptions }) {
     const radius = 40;
     const circumference = 2 * Math.PI * radius;
 
+    // палитра «Pastel Sky»
     const palette = [
-        "#4C51BF", // фиолетовый
-        "#3182CE", // синий
-        "#38A169", // зелёный
-        "#DD6B20", // оранжевый
-        "#D53F8C", // розовый
-        "#718096", // серый
+        "#e58a60", // персиковый (peach-deep)
+        "#8aa0b8", // серо-голубой (risk-low)
+        "#6fae8f", // зелёный (ok)
+        "#dfa14f", // янтарный (risk-mid)
+        "#d96b6b", // красный (risk-hi)
+        "#7c8798", // серый (muted)
     ];
 
     let offsetAcc = 0;
-    const chartSegments = segments.map((s, idx) => {
-        const fraction = totalForChart ? s.value / totalForChart : 0;
+    const chartSegments = segments.map((seg, idx) => {
+        const fraction = totalForChart ? seg.value / totalForChart : 0;
         const length = fraction * circumference;
         const dasharray = `${length} ${circumference}`;
         const dashoffset = -offsetAcc * circumference;
         offsetAcc += fraction;
 
         return {
-            ...s,
+            ...seg,
             color: palette[idx % palette.length],
             dasharray,
             dashoffset,
-            percent: formatPercent(s.value),
+            percent: formatPercent(seg.value),
         };
     });
 
     return (
-        <section
-            style={{
-                padding: 16,
-                borderRadius: 12,
-                border: "1px solid #e2e8f0",
-                marginBottom: 24,
-                background: "#fff",
-            }}
-        >
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 24,
-                    flexWrap: "wrap",
-                }}
-            >
+        <section className={s.card}>
+            <div className={s.subsRow}>
                 {/* Левая часть — заголовок + диаграмма */}
-                <div
-                    style={{
-                        flex: "0 0 260px",
-                        minWidth: 260,
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "center",
-                    }}
-                >
-                    <h2
-                        style={{
-                            margin: "0 0 4px",
-                            fontSize: 20,
-                            alignSelf: "flex-start",
-                        }}
-                    >
-                        Подписки (распределение)
-                    </h2>
-                    <p
-                        style={{
-                            margin: "0 0 16px",
-                            color: "#4a5568",
-                            fontSize: 14,
-                            alignSelf: "flex-start",
-                        }}
-                    >
+                <div className={s.subsChartCol}>
+                    <h2 className={s.cardTitle}>Подписки (распределение)</h2>
+                    <p className={s.cardSub}>
                         Всего пользователей: <b>{totalUsers}</b>
                     </p>
 
                     {segments.length === 0 ? (
-                        <p style={{ color: "#718096", fontSize: 14 }}>
-                            Пока нет данных по подпискам.
-                        </p>
+                        <p className={s.mutedText}>Пока нет данных по подпискам.</p>
                     ) : (
-                        <div
-                            style={{
-                                position: "relative",
-                                width: 220,
-                                height: 220,
-                                display: "flex",
-                                alignItems: "center",
-                                justifyContent: "center",
-                            }}
-                        >
+                        <div className={s.donutWrap}>
                             {/* donut chart */}
                             <svg
                                 width="220"
@@ -124,13 +77,13 @@ export default function DashboardSubscriptions({ subscriptions }) {
                                 viewBox="0 0 100 100"
                                 style={{ transform: "rotate(-90deg)" }}
                             >
-                                {/* фон-круг (серый, как базовый) */}
+                                {/* фон-круг (светлый серо-голубой, как базовый) */}
                                 <circle
                                     cx="50"
                                     cy="50"
                                     r={radius}
                                     fill="transparent"
-                                    stroke="#EDF2F7"
+                                    stroke="#eaf0f6"
                                     strokeWidth="14"
                                 />
 
@@ -152,35 +105,9 @@ export default function DashboardSubscriptions({ subscriptions }) {
                             </svg>
 
                             {/* центр пончика — суммарная инфа */}
-                            <div
-                                style={{
-                                    position: "absolute",
-                                    inset: 0,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    flexDirection: "column",
-                                    pointerEvents: "none",
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        fontSize: 26,
-                                        fontWeight: 700,
-                                        color: "#2D3748",
-                                        lineHeight: 1.1,
-                                    }}
-                                >
-                                    {totalForChart || 0}
-                                </div>
-                                <div
-                                    style={{
-                                        fontSize: 11,
-                                        color: "#A0AEC0",
-                                        textAlign: "center",
-                                        marginTop: 2,
-                                    }}
-                                >
+                            <div className={s.donutCenter}>
+                                <div className={s.donutNum}>{totalForChart || 0}</div>
+                                <div className={s.donutLabel}>
                                     учтённых
                                     <br />
                                     пользователей
@@ -192,106 +119,35 @@ export default function DashboardSubscriptions({ subscriptions }) {
 
                 {/* Правая часть — легенда / таблица */}
                 {segments.length > 0 && (
-                    <div
-                        style={{
-                            flex: "1 1 260px",
-                            minWidth: 260,
-                            fontSize: 13,
-                        }}
-                    >
-                        <table
-                            style={{
-                                width: "100%",
-                                borderCollapse: "collapse",
-                                fontSize: 13,
-                            }}
-                        >
+                    <div className={s.subsLegendCol}>
+                        <table className={s.table}>
                             <thead>
                             <tr>
-                                <th
-                                    style={{
-                                        textAlign: "left",
-                                        padding: "6px 4px",
-                                        borderBottom: "1px solid #e2e8f0",
-                                    }}
-                                >
-                                    Категория
-                                </th>
-                                <th
-                                    style={{
-                                        textAlign: "right",
-                                        padding: "6px 4px",
-                                        borderBottom: "1px solid #e2e8f0",
-                                        whiteSpace: "nowrap",
-                                    }}
-                                >
-                                    Пользователей
-                                </th>
-                                <th
-                                    style={{
-                                        textAlign: "right",
-                                        padding: "6px 4px",
-                                        borderBottom: "1px solid #e2e8f0",
-                                        whiteSpace: "nowrap",
-                                    }}
-                                >
-                                    Доля
-                                </th>
+                                <th>Категория</th>
+                                <th className={s.right}>Пользователей</th>
+                                <th className={s.right}>Доля</th>
                             </tr>
                             </thead>
                             <tbody>
-                            {chartSegments.map((s) => (
-                                <tr key={s.key}>
-                                    <td
-                                        style={{
-                                            padding: "6px 4px",
-                                            display: "flex",
-                                            alignItems: "center",
-                                            gap: 6,
-                                        }}
-                                    >
+                            {chartSegments.map((seg) => (
+                                <tr key={seg.key}>
+                                    <td>
+                                        <span className={s.legendCell}>
                                             <span
-                                                style={{
-                                                    width: 10,
-                                                    height: 10,
-                                                    borderRadius: 3,
-                                                    backgroundColor: s.color,
-                                                    flexShrink: 0,
-                                                }}
+                                                className={s.legendSwatch}
+                                                style={{ backgroundColor: seg.color }}
                                             />
-                                        <span>{s.label}</span>
+                                            <span>{seg.label}</span>
+                                        </span>
                                     </td>
-                                    <td
-                                        style={{
-                                            padding: "6px 4px",
-                                            textAlign: "right",
-                                            fontVariantNumeric: "tabular-nums",
-                                        }}
-                                    >
-                                        {s.value}
-                                    </td>
-                                    <td
-                                        style={{
-                                            padding: "6px 4px",
-                                            textAlign: "right",
-                                            fontVariantNumeric: "tabular-nums",
-                                            color: "#4A5568",
-                                        }}
-                                    >
-                                        {s.percent}
-                                    </td>
+                                    <td className={`${s.right} ${s.mono}`}>{seg.value}</td>
+                                    <td className={`${s.right} ${s.mono}`}>{seg.percent}</td>
                                 </tr>
                             ))}
                             </tbody>
                         </table>
 
-                        <p
-                            style={{
-                                marginTop: 8,
-                                fontSize: 11,
-                                color: "#A0AEC0",
-                            }}
-                        >
+                        <p className={s.footnote}>
                             Диаграмма отражает только категории с ненулевым количеством
                             пользователей.
                         </p>

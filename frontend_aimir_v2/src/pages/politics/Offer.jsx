@@ -13,6 +13,7 @@ export default function Offer() {
                     ← На главную
                 </button>
 
+                <article className={styles.sheet}>
                 <div className={styles.card}>
                     <p className={styles.text}>
                         Дата вступления в силу: 11 сентября 2025 г.
@@ -76,9 +77,7 @@ export default function Offer() {
                         <br />
                         Совершая указанные действия, Пользователь подтверждает согласие с условиями.
                         <br />
-                        Регистрация возможна через e-mail, Telegram или Google.
-                        <br />
-                        Регистрируясь через сторонние сервисы, Пользователь соглашается на передачу данных профиля.
+                        Регистрация возможна через e-mail.
                         <br />
                         Заказ считается оформленным после поступления средств на счёт Исполнителя.
                     </p>
@@ -196,6 +195,7 @@ export default function Offer() {
                         Последнее обновление: 11.09.2025
                     </p>
                 </section>
+                </article>
             </div>
         </div>
     );

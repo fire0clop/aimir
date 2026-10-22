@@ -1,0 +1,241 @@
+.stage {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    height: 100%;
+    min-height: 300px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+
+/* ---------- многослойное парение ----------
+   Внешний слой — вертикаль (5.9s), внутренний — покачивание (7.3s).
+   Периоды разные, поэтому траектория не повторяется и выглядит живой. */
+.floatY {
+    animation: floatY 5.9s ease-in-out infinite;
+    will-change: transform;
+}
+
+@keyframes floatY {
+    0%, 100% { transform: translateY(0) scaleY(0.995); }
+    18% { transform: translateY(-7px) scaleY(1.004); }
+    50% { transform: translateY(-17px) scaleY(1.008); }
+    82% { transform: translateY(-6px) scaleY(1.002); }
+}
+
+.sway {
+    animation: sway 7.3s ease-in-out infinite;
+    transform-origin: 50% 78%;
+    will-change: transform;
+}
+
+@keyframes sway {
+    0%, 100% { transform: rotate(-1.4deg) translateX(-2px); }
+    50% { transform: rotate(1.4deg) translateX(2px); }
+}
+
+.mascot {
+    display: block;
+    filter: drop-shadow(0 30px 30px rgba(60, 75, 100, 0.22));
+}
+
+/* клик: прыжок со сквошем */
+.excited .floatY {
+    animation: jump 0.9s cubic-bezier(0.28, 0.9, 0.42, 1);
+}
+
+@keyframes jump {
+    0% { transform: translateY(0) scale(1, 1); }
+    12% { transform: translateY(4px) scale(1.05, 0.9); }
+    40% { transform: translateY(-34px) scale(0.97, 1.05); }
+    70% { transform: translateY(2px) scale(1.04, 0.94); }
+    85% { transform: translateY(-4px) scale(0.99, 1.01); }
+    100% { transform: translateY(0) scale(1, 1); }
+}
+
+/* ---------- тень ---------- */
+.shadow {
+    position: absolute;
+    bottom: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 34px;
+    border-radius: 50%;
+    background: radial-gradient(closest-side, rgba(60, 75, 100, 0.28), transparent 72%);
+    animation: shadowBreathe 5.9s ease-in-out infinite;
+}
+
+@keyframes shadowBreathe {
+    0%, 100% { transform: translateX(-50%) scale(1); opacity: 0.9; }
+    50% { transform: translateX(-50%) scale(0.8); opacity: 0.5; }
+}
+
+.excited .shadow {
+    animation: shadowJump 0.9s cubic-bezier(0.28, 0.9, 0.42, 1);
+}
+
+@keyframes shadowJump {
+    0%, 100% { transform: translateX(-50%) scale(1); opacity: 0.9; }
+    40% { transform: translateX(-50%) scale(0.6); opacity: 0.35; }
+}
+
+/* ---------- руки: микро-качание в противофазе ---------- */
+.armL,
+.armR {
+    transform-box: view-box;
+    will-change: transform;
+}
+
+.armL {
+    transform-origin: 135px 262px;
+    animation: armSwing 7.3s ease-in-out infinite;
+}
+
+.armR {
+    transform-origin: 245px 262px;
+    animation: armSwing 7.3s ease-in-out infinite reverse;
+}
+
+@keyframes armSwing {
+    0%, 100% { transform: rotate(-2.2deg); }
+    50% { transform: rotate(2.2deg); }
+}
+
+/* ноги: едва заметная противофаза покачиванию тела */
+.legs {
+    transform-box: view-box;
+    transform-origin: 190px 360px;
+    animation: legsSwing 7.3s ease-in-out infinite;
+}
+
+@keyframes legsSwing {
+    0%, 100% { transform: rotate(0.8deg); }
+    50% { transform: rotate(-0.8deg); }
+}
+
+/* шнурки: инерция с запаздыванием относительно тела */
+.strings {
+    transform-box: view-box;
+    transform-origin: 190px 224px;
+    animation: stringsSway 7.3s ease-in-out infinite;
+    animation-delay: -0.6s;
+}
+
+@keyframes stringsSway {
+    0%, 100% { transform: rotate(2.6deg); }
+    50% { transform: rotate(-2.6deg); }
+}
+
+/* ---------- глаза ---------- */
+/* моргание: обычное + изредка двойное (одна длинная итерация — 8.4s) */
+.eyesBlink {
+    transform-box: view-box;
+    transform-origin: 190px 152px;
+    animation: blink 8.4s ease-in-out infinite;
+}
+
+@keyframes blink {
+    0%, 46%, 52%, 78%, 81.5%, 84%, 87.5%, 100% { transform: scaleY(1); }
+    49% { transform: scaleY(0.06); }   /* обычное моргание */
+    80% { transform: scaleY(0.06); }   /* двойное: раз... */
+    86% { transform: scaleY(0.06); }   /* ...два */
+}
+
+.eyesGlow {
+    animation: glowPulse 3.2s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+    0%, 100% { opacity: 0.55; }
+    50% { opacity: 1; }
+}
+
+/* счастливые глаза-дуги (по клику) */
+.eyesHappy {
+    opacity: 0;
+}
+
+.excited .eyesHappy {
+    opacity: 1;
+}
+
+.excited .eyesOpen {
+    opacity: 0;
+    animation: none;
+}
+
+/* ---------- режим «читает договор» ---------- */
+/* глаза бегают по строкам: влево-вправо со «переводом строки» вниз */
+.reading .eyesScan {
+    transform-box: view-box;
+    animation: scanLines 2.6s ease-in-out infinite;
+}
+
+@keyframes scanLines {
+    0% { transform: translate(-7px, -3px); }
+    38% { transform: translate(7px, -3px); }
+    46% { transform: translate(-7px, 0); }
+    82% { transform: translate(7px, 0); }
+    90% { transform: translate(-7px, 3px); }
+    100% { transform: translate(-7px, -3px); }
+}
+
+.reading .eyesGlow {
+    animation-duration: 1.1s;
+}
+
+/* чуть прищуренные глаза при чтении */
+.reading .eyesBlink {
+    animation: blinkReading 4.2s ease-in-out infinite;
+}
+
+@keyframes blinkReading {
+    0%, 44%, 50%, 100% { transform: scaleY(0.88); }
+    47% { transform: scaleY(0.06); }
+}
+
+/* ---------- облачко ---------- */
+.bubble {
+    position: absolute;
+    top: 2%;
+    right: 0;
+    z-index: 2;
+    background: rgba(255, 255, 255, 0.72);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    border-radius: 18px 18px 18px 4px;
+    box-shadow: 0 24px 60px -24px rgba(63, 82, 110, 0.35);
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #556174;
+    max-width: 190px;
+    transform-origin: 8% 100%;
+    animation: bubblePop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), bubbleFloat 6.5s ease-in-out 0.45s infinite;
+}
+
+@keyframes bubblePop {
+    0% { opacity: 0; transform: scale(0.6) translateY(8px); }
+    100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes bubbleFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+}
+
+/* доступность: уважение reduce-motion */
+@media (prefers-reduced-motion: reduce) {
+    .floatY, .sway, .armL, .armR, .legs, .strings,
+    .eyesScan, .shadow, .bubble {
+        animation: none !important;
+    }
+}
+
+@media (max-width: 900px) {
+    .stage { min-height: 260px; }
+    .bubble { right: 4%; max-width: 160px; }
+}

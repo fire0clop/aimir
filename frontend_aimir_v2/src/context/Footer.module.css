@@ -1,72 +1,112 @@
+/* Футер — светлый, стеклянный, в стиле «Pastel Sky» */
+
 .footer {
-    background: #1A2947;
-    border-top: 1px solid #e2e8f0;
-    padding: 40px 24px;
-    font-family: "Inter", sans-serif;
-    color: #ffffff;
+    border-top: 1px solid rgba(255, 255, 255, 0.7);
+    background: rgba(255, 255, 255, 0.45);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: var(--ink-soft);
 }
 
-.wrap {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    align-items: start;
-    gap: 32px;
-    max-width: 1200px;
+.inner {
+    max-width: 1120px;
     margin: 0 auto;
+    padding: 40px 24px 24px;
 }
 
-/* бренд */
+.main {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1.2fr 1fr;
+    gap: 32px;
+}
+
 .brandBlock {
     display: flex;
     align-items: flex-start;
-    gap: 14px;
-}
-.logo {
-    width: 48px;
-    height: 48px;
-}
-.brand {
-    font-weight: 700;
-    font-size: 18px;
-    margin-bottom: 2px;
-}
-.sub {
-    color: #64748b;
-    font-size: 14px;
-    line-height: 1.4;
+    gap: 12px;
 }
 
-/* колонки */
+.logoMark {
+    flex-shrink: 0;
+    width: 38px;
+    height: 38px;
+    border-radius: 11px;
+    background: linear-gradient(145deg, #3a4356, #242b3a);
+    display: grid;
+    place-items: center;
+    box-shadow: 0 6px 16px -6px rgba(44, 52, 66, 0.5);
+}
+
+.logoEye {
+    display: block;
+    width: 18px;
+    height: 10px;
+    border-radius: 5px;
+    background: linear-gradient(180deg, #fff, #ffd8c4);
+    box-shadow: 0 0 8px rgba(255, 214, 196, 0.9);
+}
+
+.brandAccent {
+    font-style: normal;
+    color: var(--peach-deep);
+}
+
+.brand {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-size: 17px;
+    color: var(--ink);
+}
+
+.sub {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 2px;
+}
+
 .col {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
 }
+
 .head {
-    font-weight: 600;
-    font-size: 15px;
-    margin-bottom: 8px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 4px;
 }
+
 .link {
-    color: #9DA3AF;
-    font-size: 14px;
+    font-size: 13.5px;
+    color: var(--ink-soft);
     text-decoration: none;
     line-height: 1.5;
 }
-.link:hover {
-    color: #cccfd5;
-    text-decoration: underline;
+
+a.link:hover {
+    color: var(--peach-deep);
 }
 
-@media (max-width: 768px) {
-    .footer {
-        padding: 32px 16px;
+.copy {
+    margin-top: 32px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(124, 135, 152, 0.18);
+    font-size: 13px;
+    color: var(--muted);
+    text-align: center;
+}
+
+@media (max-width: 860px) {
+    .main {
+        grid-template-columns: 1fr 1fr;
     }
-    .wrap {
+}
+
+@media (max-width: 560px) {
+    .main {
         grid-template-columns: 1fr;
-        gap: 24px;
-    }
-    .brandBlock {
-        align-items: center;
     }
 }

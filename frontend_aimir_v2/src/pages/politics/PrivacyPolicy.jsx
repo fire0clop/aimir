@@ -13,6 +13,7 @@ export default function PrivacyPolicy() {
                     ← На главную
                 </button>
 
+                <article className={styles.sheet}>
                 <div className={styles.card}>
                     <p className={styles.text}>
                         Дата вступления в силу: 29 сентября 2025 г. — последняя редакция.
@@ -52,8 +53,7 @@ export default function PrivacyPolicy() {
 
                     <p className={styles.text}>
                         Данные для регистрации: e-mail, имя (или псевдоним), хэшированный пароль.<br />
-                        Регистрация через Telegram: User ID, username, имя и фамилия (если указаны).<br />
-                        Регистрация через Google: e-mail, Google ID, имя, фамилия, ссылка на фото профиля (если публично).<br />
+                        При привязке Telegram в профиле: Telegram User ID.<br />
                         Автоматически собираемые данные: IP-адрес, данные о браузере и устройстве, cookies,
                         история действий на Сайте.<br />
                         Добровольно предоставляемые данные: тексты, документы и иной Контент, загружаемые для проверки.
@@ -119,7 +119,6 @@ export default function PrivacyPolicy() {
 
                     <p className={styles.text}>
                         Использование API сторонних ИИ-сервисов (OpenAI, Yandex GPT и др.).<br />
-                        Авторизация через Telegram и Google.<br />
                         Передача по требованиям госорганов.
                     </p>
                 </section>
@@ -159,6 +158,7 @@ export default function PrivacyPolicy() {
 
                     <p className={styles.update}>Последнее обновление: 29.09.2025</p>
                 </section>
+                </article>
             </div>
         </div>
     );

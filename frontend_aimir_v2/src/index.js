@@ -31,7 +31,7 @@ function RequireAuth({ children }) {
 function PublicOnly({ children }) {
     const { user, loading } = useAuth();
     if (loading) return null;
-    if (user) return <Navigate to="/profile" replace />;
+    if (user) return <Navigate to="/billing" replace />;
     return children;
 }
 

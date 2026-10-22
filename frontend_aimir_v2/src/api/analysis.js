@@ -1,5 +1,53 @@
 // src/api/analysis.js
 import { http } from "./http";
+import { loadGuestToken } from "./documents";
+
+/**
+ * Применить правки к документу и получить исправленный .docx.
+ *
+ * POST /analysis/apply-edits
+ * body: { document_id, edits: [{ old, new, clause? }] }
+ *
+ * При успехе возвращает { blob, filename }.
+ * Если часть правок не нашлась в документе — бросает ошибку с полем
+ * failed: [{ index, reason }] (индексы в переданном массиве edits).
+ */
+export async function applyDocumentEdits({ documentId, edits }) {
+    if (!documentId) throw new Error("documentId required");
+    if (!edits?.length) throw new Error("edits required");
+
+    const headers = { "Content-Type": "application/json" };
+    const tokens = http.getTokens?.();
+    if (tokens?.access_token) headers.Authorization = `Bearer ${tokens.access_token}`;
+    const guest = loadGuestToken();
+    if (guest) headers["X-Guest-Token"] = guest;
+
+    const res = await fetch(http.baseURL + "/analysis/apply-edits", {
+        method: "POST",
+        headers,
+        credentials: "include",
+        body: JSON.stringify({ document_id: documentId, edits }),
+    });
+
+    if (!res.ok) {
+        let detail = null;
+        try { detail = (await res.json())?.detail; } catch {}
+        const err = new Error(
+            typeof detail === "string" ? detail : "Не удалось применить правки"
+        );
+        if (detail && typeof detail === "object" && Array.isArray(detail.failed)) {
+            err.failed = detail.failed;
+        }
+        throw err;
+    }
+
+    const blob = await res.blob();
+    let filename = "Исправленный договор.docx";
+    const cd = res.headers.get("Content-Disposition") || "";
+    const m = cd.match(/filename\*=UTF-8''([^;]+)/);
+    if (m) { try { filename = decodeURIComponent(m[1]); } catch {} }
+    return { blob, filename };
+}
 
 /**
  * 1) Найти стороны договора по тексту документа (гость или пользователь).
@@ -220,47 +268,4 @@ export async function sendAnalysisFeedback({ analysisId, feedbackKind }) {
         throw new Error(await res.text());
     }
     return res.json();
-}
-
-/**
- * 5) Вспомогательная функция для получения severity в читаемом виде
- *
- * @param {string} severity - "low", "medium", "high"
- * @returns {{ label: string, color: string }}
- */
-export function getSeverityInfo(severity) {
-    switch (severity) {
-        case "high":
-            return { label: "Высокий", color: "#dc2626" };
-        case "medium":
-            return { label: "Средний", color: "#f59e0b" };
-        case "low":
-            return { label: "Низкий", color: "#10b981" };
-        default:
-            return { label: "Неизвестно", color: "#6b7280" };
-    }
-}
-
-/**
- * 6) Вспомогательная функция для получения цвета danger_score
- *
- * @param {number} score - от 0 до 100
- * @returns {string} цвет в HEX
- */
-export function getDangerScoreColor(score) {
-    if (score >= 70) return "#10b981"; // зелёный - безопасно
-    if (score >= 40) return "#f59e0b"; // оранжевый - средний риск
-    return "#dc2626"; // красный - высокий риск
-}
-
-/**
- * 7) Вспомогательная функция для получения текстовой оценки danger_score
- *
- * @param {number} score - от 0 до 100
- * @returns {string} текстовая оценка
- */
-export function getDangerScoreText(score) {
-    if (score >= 70) return "Низкий риск";
-    if (score >= 40) return "Средний риск";
-    return "Высокий риск";
 }

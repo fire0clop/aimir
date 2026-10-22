@@ -1,7 +1,55 @@
+/* ============================================================
+   Глобальные дизайн-токены AiMIR — стиль «Pastel Sky»
+   ============================================================ */
+:root {
+    /* фон-небо */
+    --sky-top: #d7dfe9;
+    --sky-mid: #c7d2e0;
+    --sky-fog: #eef2f6;
+
+    /* поверхности */
+    --card: rgba(255, 255, 255, 0.72);
+    --card-solid: #fbfcfe;
+    --card-border: rgba(255, 255, 255, 0.85);
+    --card-shadow: 0 24px 60px -24px rgba(63, 82, 110, 0.35);
+
+    /* текст */
+    --ink: #2c3442;
+    --ink-soft: #556174;
+    --muted: #7c8798;
+
+    /* акценты */
+    --peach: #f2a37e;
+    --peach-deep: #e58a60;
+    --peach-soft: #fdeade;
+
+    /* семантика рисков */
+    --risk-hi: #d96b6b;
+    --risk-hi-soft: #fbe9e7;
+    --risk-mid: #dfa14f;
+    --risk-mid-soft: #fbf1e0;
+    --risk-low: #8aa0b8;
+    --risk-low-soft: #eaf0f6;
+    --ok: #6fae8f;
+
+    /* радиусы / блюр */
+    --r-lg: 28px;
+    --r-md: 20px;
+    --r-sm: 12px;
+    --glass-blur: 14px;
+
+    /* шрифты */
+    --font-ui: 'Manrope', system-ui, -apple-system, sans-serif;
+    --font-display: 'Unbounded', sans-serif;
+}
+
 body {
     margin: 0;
-
+    font-family: var(--font-ui);
+    color: var(--ink);
+    background: linear-gradient(178deg, var(--sky-top) 0%, var(--sky-mid) 46%, var(--sky-fog) 100%) fixed;
 }
+
 html {
     scroll-behavior: smooth;
 }

@@ -1,20 +1,28 @@
 // src/api/reviews.js
 import { http } from "./http";
 
+// бросает Error с полем status — чтобы UI мог отличить 403 и т.п.
+async function throwHttpError(res) {
+    const text = await res.text();
+    const err = new Error(text);
+    err.status = res.status;
+    throw err;
+}
+
 /* ========== ПУБЛИЧНЫЕ ========== */
 
 /** Список опубликованных отзывов (для главной). Поддерживает пагинацию. */
 export async function listPublishedReviews({ limit = 20, offset = 0 } = {}) {
     const qs = new URLSearchParams({ limit, offset }).toString();
     const res = await http.get(`/reviews?${qs}`);
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) await throwHttpError(res);
     return res.json(); // { total, items: ReviewOut[] }
 }
 
 /** Получить один опубликованный отзыв по id */
 export async function getPublishedReview(id) {
     const res = await http.get(`/reviews/${id}`);
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) await throwHttpError(res);
     return res.json(); // ReviewOut
 }
 
@@ -22,7 +30,7 @@ export async function getPublishedReview(id) {
 export async function createReview({ email, title, description, rating }) {
     const body = { email, title, description, rating };
     const res = await http.post("/reviews", body);
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) await throwHttpError(res);
     return res.json(); // ReviewOut
 }
 
@@ -49,7 +57,7 @@ export async function adminListReviews({
     if (search) sp.set("search", search);
 
     const res = await http.get(`/reviews/admin?${sp.toString()}`);
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) await throwHttpError(res);
     return res.json(); // { total, items }
 }
 
@@ -66,7 +74,7 @@ export async function adminUpdateReview(id, patch) {
         res = await http.post(`/reviews/${id}?_method=PATCH`, patch);
     }
 
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) await throwHttpError(res);
     return res.json(); // ReviewOut
 }
 
@@ -80,13 +88,13 @@ export async function adminSetPublish(id, published) {
         res = await http.post(`/reviews/${id}/publish?_method=PATCH`, { published });
     }
 
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) await throwHttpError(res);
     return res.json(); // ReviewOut
 }
 
 /** Админ: удалить отзыв */
 export async function adminDeleteReview(id) {
     const res = await http.del(`/reviews/${id}`);
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) await throwHttpError(res);
     return true;
 }

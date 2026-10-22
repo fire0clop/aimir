@@ -1,8 +1,8 @@
-// src/components/Documents.jsx
+// src/pages/Documents.jsx
 import React, { useEffect, useState } from "react";
 import s from "./Documents.module.css";
 import { listMyDocuments } from "../api/documents";
-import { unlockAnalysis, getSeverityInfo } from "../api/analysis";
+import { unlockAnalysis } from "../api/analysis";
 import { getBillingStatus } from "../api/billing";
 import {
     Document as DocxDocument,
@@ -13,14 +13,96 @@ import {
     AlignmentType,
 } from "docx";
 
+// ─── Helpers ──────────────────────────────────────────────────
 
+function scoreColor(score) {
+    if (score == null) return "";
+    if (score <= 40) return s.scoreDanger;
+    if (score <= 70) return s.scoreWarn;
+    return s.scoreOk;
+}
+function barClass(score) {
+    if (score == null) return "";
+    if (score <= 40) return s.scoreBarDanger;
+    if (score <= 70) return s.scoreBarWarn;
+    return s.scoreBarOk;
+}
+function scoreTitle(score) {
+    if (score == null) return "";
+    if (score <= 25) return "Критически опасный договор";
+    if (score <= 40) return "Высокий уровень риска";
+    if (score <= 60) return "Умеренный риск — нужна доработка";
+    if (score <= 80) return "Небольшие замечания";
+    return "Договор в целом безопасен";
+}
 
+const SEV_LABEL = { high: "Критично", medium: "Средний риск", low: "Незначительно" };
+const SEV_CLASS = { high: s.sevHigh, medium: s.sevMedium, low: s.sevLow };
+const CARD_CLASS = { high: s.issueCardHigh, medium: s.issueCardMedium, low: s.issueCardLow };
+// eslint-disable-next-line no-unused-vars
+const PILL_CLASS = { high: s.pillHigh, medium: s.pillMedium, low: s.pillLow };
+
+// ─── IssueCard accordion ───────────────────────────────────────
+function IssueCard({ issue, defaultOpen }) {
+    const [open, setOpen] = useState(defaultOpen);
+    return (
+        <div className={[s.issueCard, CARD_CLASS[issue.severity] || s.issueCardLow].join(" ")}>
+            <div
+                className={s.issueHeader}
+                onClick={() => setOpen(o => !o)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => (e.key === "Enter" || e.key === " ") && setOpen(o => !o)}
+            >
+                <span className={s.issueClauseTag}>{issue.clause}</span>
+                <span className={s.issueProblem}>{issue.problem}</span>
+                <span className={[s.issueSevBadge, SEV_CLASS[issue.severity] || s.sevLow].join(" ")}>
+                    {SEV_LABEL[issue.severity] || issue.severity}
+                </span>
+                <svg
+                    className={[s.issueChevron, open ? s.issueChevronOpen : ""].join(" ")}
+                    width="16" height="16" viewBox="0 0 24 24"
+                    fill="none" stroke="currentColor" strokeWidth="2"
+                >
+                    <polyline points="6 9 12 15 18 9" />
+                </svg>
+            </div>
+            <div className={[s.issueBody, open ? s.issueBodyOpen : ""].join(" ")}>
+                <div className={s.issueBodyInner}>
+                    {issue.text && (
+                        <blockquote className={s.issueQuote}>«{issue.text}»</blockquote>
+                    )}
+                    {issue.risk && (
+                        <div className={[s.detailBlock, s.detailBlockRisk].join(" ")}>
+                            <div className={s.detailLabel}>Что может случиться</div>
+                            {issue.risk}
+                        </div>
+                    )}
+                    {issue.why && (
+                        <div className={[s.detailBlock, s.detailBlockWhy].join(" ")}>
+                            <div className={s.detailLabel}>Почему это проблема</div>
+                            {issue.why}
+                        </div>
+                    )}
+                    {issue.fix && (
+                        <div className={[s.detailBlock, s.detailBlockFix].join(" ")}>
+                            <div className={s.detailLabel}>Как исправить</div>
+                            {issue.fix}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ─── Main component ────────────────────────────────────────────
 export default function Documents() {
     const [docs, setDocs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState("");
 
-    const [billing, setBilling] = useState(null); // { has_subscription, active, credits, ... }
+    const [billing, setBilling] = useState(null);
 
     // модалка
     const [modalDoc, setModalDoc] = useState(null);
@@ -28,6 +110,8 @@ export default function Documents() {
     const [modalBusy, setModalBusy] = useState(false);
     const [modalErr, setModalErr] = useState("");
     const [copied, setCopied] = useState(false);
+    const [scoreAnimated, setScoreAnimated] = useState(false);
+    const [activeFilter, setActiveFilter] = useState("all");
 
     // ---------- helpers ----------
 
@@ -99,7 +183,6 @@ export default function Documents() {
 
             const arr = Array.isArray(docsData) ? docsData : [];
 
-            // сортируем по created_at по убыванию (сверху — новые)
             const sorted = [...arr].sort((a, b) => {
                 const da = a.created_at ? new Date(a.created_at).getTime() : 0;
                 const db = b.created_at ? new Date(b.created_at).getTime() : 0;
@@ -107,7 +190,6 @@ export default function Documents() {
             });
 
             setDocs(sorted);
-
             if (billingData) setBilling(billingData);
         } catch (e) {
             setErr(parseErr(e));
@@ -119,6 +201,16 @@ export default function Documents() {
     useEffect(() => {
         load();
     }, []);
+
+    // score animation trigger
+    useEffect(() => {
+        if (modalAnalysis) {
+            setScoreAnimated(false);
+            setTimeout(() => setScoreAnimated(true), 80);
+        } else {
+            setScoreAnimated(false);
+        }
+    }, [modalAnalysis]);
 
     // ---------- модалка ----------
 
@@ -134,6 +226,7 @@ export default function Documents() {
         setModalAnalysis(norm);
         setModalErr("");
         setCopied(false);
+        setActiveFilter("all");
     };
 
     const closeModal = () => {
@@ -141,6 +234,7 @@ export default function Documents() {
         setModalAnalysis(null);
         setModalErr("");
         setCopied(false);
+        setActiveFilter("all");
     };
 
     // биллинг / доступ
@@ -161,8 +255,6 @@ export default function Documents() {
 
         try {
             const res = await unlockAnalysis(modalAnalysis.id);
-            // res: { analysis_id, document_id, selected_party, analysis, access }
-
             const inner = res.analysis || {};
             const isV2 = !!(inner.overall_assessment || Array.isArray(inner.issues));
 
@@ -189,7 +281,6 @@ export default function Documents() {
 
             setModalAnalysis(newAnalysis);
 
-            // обновляем список документов
             setDocs((prev) =>
                 prev.map((d) => {
                     if (d.id !== res.document_id) return d;
@@ -199,16 +290,12 @@ export default function Documents() {
                         id: newAnalysis.id,
                         selected_party: newAnalysis.selected_party,
                         is_paid: true,
-                        analysis: {
-                            ...(la.analysis || {}),
-                            ...newAnalysis,
-                        },
+                        analysis: { ...(la.analysis || {}), ...newAnalysis },
                     };
                     return { ...d, last_analysis: updatedLA };
                 })
             );
 
-            // обновляем биллинг по кредитам (если пришёл access)
             if (res.access && typeof res.access.credits === "number") {
                 setBilling((prev) =>
                     prev
@@ -271,7 +358,6 @@ export default function Documents() {
             if (!text) return;
 
             const logoUrl = `${process.env.PUBLIC_URL || ""}/logo.png`;
-
             const logoRes = await fetch(logoUrl, { cache: "no-store" });
             if (!logoRes.ok) throw new Error(`logo.png не найден: ${logoRes.status}`);
 
@@ -279,17 +365,13 @@ export default function Documents() {
             const ct = (logoBlob.type || "").toLowerCase();
             if (!ct.includes("png")) throw new Error(`logo.png вернул не PNG: ${ct}`);
 
-            // реальные размеры -> правильная высота
             const bmp = await createImageBitmap(logoBlob);
             const w0 = bmp.width || 1;
             const h0 = bmp.height || 1;
-
-            const targetW = 140; // подстрой
+            const targetW = 140;
             const targetH = Math.round((targetW * h0) / w0);
-
             const logoData = new Uint8Array(await logoBlob.arrayBuffer());
 
-            // текст -> параграфы
             const paragraphs = text.split("\n").map((line) =>
                 new Paragraph({
                     children: [new TextRun(line === "" ? " " : line)],
@@ -301,7 +383,6 @@ export default function Documents() {
                     {
                         properties: {},
                         children: [
-                            // ЛОГО как обычный первый блок
                             new Paragraph({
                                 alignment: AlignmentType.LEFT,
                                 children: [
@@ -313,10 +394,7 @@ export default function Documents() {
                                 ],
                                 spacing: { after: 240 },
                             }),
-
-                            // небольшой отступ
                             new Paragraph({ children: [new TextRun(" ")] }),
-
                             ...paragraphs,
                         ],
                     },
@@ -324,7 +402,6 @@ export default function Documents() {
             });
 
             const blob = await Packer.toBlob(doc);
-
             const baseName = modalDoc?.original_name || "analysis";
             const safeName = baseName.replace(/\.[^/.]+$/, "");
             const url = URL.createObjectURL(blob);
@@ -341,23 +418,46 @@ export default function Documents() {
         }
     };
 
+    // ---------- filter tabs for v2 issues ----------
 
+    const issues = modalAnalysis?.issues || [];
+    const highCount = issues.filter(i => i.severity === "high").length;
+    const medCount  = issues.filter(i => i.severity === "medium").length;
+    const lowCount  = issues.filter(i => i.severity === "low").length;
 
+    const tabs = [
+        { id: "all",    label: `Все (${issues.length})` },
+        ...(highCount > 0 ? [{ id: "high",   label: `Критично (${highCount})` }] : []),
+        ...(medCount  > 0 ? [{ id: "medium", label: `Средние (${medCount})` }] : []),
+        ...(lowCount  > 0 ? [{ id: "low",    label: `Незначительные (${lowCount})` }] : []),
+    ];
+
+    const filteredIssues = activeFilter === "all"
+        ? issues
+        : issues.filter(i => i.severity === activeFilter);
 
     // ---------- UI ----------
 
     return (
         <div className={s.page}>
             <div className={s.wrap}>
+                {/* top row */}
                 <div className={s.top}>
                     <h1 className={s.title}>Мои документы</h1>
                     <button className={s.refresh} onClick={load} disabled={loading}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M23 4v6h-6" />
+                            <path d="M1 20v-6h6" />
+                            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                        </svg>
                         Обновить
                     </button>
                 </div>
 
                 {err && <div className={s.alert}>{err}</div>}
 
+                {/* billing info */}
                 {billing && (
                     <div className={s.billingInfo}>
                         {billing.active && billing.has_subscription ? (
@@ -366,7 +466,7 @@ export default function Documents() {
                                 {billing.subscription_end
                                     ? ` до ${fmtDate(billing.subscription_end)}`
                                     : ""}
-                                . Доступ ко всем анализам открыт.
+                                . Все анализы доступны.
                             </span>
                         ) : (
                             <span className={s.muted}>
@@ -376,53 +476,66 @@ export default function Documents() {
                     </div>
                 )}
 
+                {/* list */}
                 {loading ? (
-                    <div className={s.skel}>Загружаем…</div>
+                    <div className={s.skel}>Загружаем документы…</div>
                 ) : docs.length === 0 ? (
-                    <div className={s.empty}>Пока нет загруженных документов.</div>
+                    <div className={s.empty}>
+                        <div style={{ marginBottom: 8, fontSize: 32 }}>📄</div>
+                        Пока нет загруженных документов.
+                    </div>
                 ) : (
-                    <ul className={s.list} role="list">
+                    <ul className={s.list}>
                         {docs.map((doc) => {
                             const a = extractAnalysisFromDoc(doc);
-                            let statusText = "Аналитика ещё не выполнена";
-                            let statusClass = s.badgeLocked;
+                            let statusText;
+                            let badgeClass;
 
-                            if (a) {
-                                if (hasSub) {
-                                    statusText = "Аналитика доступна (подписка)";
-                                    statusClass = s.badgePaid;
-                                } else if (a.is_paid) {
-                                    statusText = "Аналитика разблокирована";
-                                    statusClass = s.badgePaid;
-                                } else {
-                                    statusText = "Аналитика: только превью";
-                                    statusClass = s.badgeLocked;
-                                }
+                            if (!a) {
+                                statusText = "Нет аналитики";
+                                badgeClass = s.badgeNone;
+                            } else if (hasSub) {
+                                statusText = "Аналитика открыта";
+                                badgeClass = s.badgePaid;
+                            } else if (a.is_paid) {
+                                statusText = "Аналитика разблокирована";
+                                badgeClass = s.badgePaid;
+                            } else {
+                                statusText = "Только превью";
+                                badgeClass = s.badgeLocked;
                             }
 
                             return (
                                 <li
                                     key={doc.id}
-                                    className={s.item}
+                                    className={[s.item, a ? s.itemClickable : ""].join(" ")}
                                     onClick={a ? () => openModal(doc) : undefined}
+                                    role={a ? "button" : undefined}
+                                    tabIndex={a ? 0 : undefined}
+                                    onKeyDown={a ? (e) => (e.key === "Enter" || e.key === " ") && openModal(doc) : undefined}
                                 >
-                                    <div className={s.meta}>
-                                        <div
-                                            className={s.name}
-                                            title={doc.original_name}
-                                        >
-                                            {doc.original_name}
+                                    <div className={s.itemLeft}>
+                                        <div className={s.docIcon}>
+                                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                                stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                                                <polyline points="14 2 14 8 20 8" />
+                                                <line x1="16" y1="13" x2="8" y2="13" />
+                                                <line x1="16" y1="17" x2="8" y2="17" />
+                                                <polyline points="10 9 9 9 8 9" />
+                                            </svg>
                                         </div>
-                                        {doc.created_at && (
-                                            <div className={s.size}>
-                                                {fmtDate(doc.created_at)}
+                                        <div className={s.meta}>
+                                            <div className={s.name} title={doc.original_name}>
+                                                {doc.original_name}
                                             </div>
-                                        )}
+                                            {doc.created_at && (
+                                                <div className={s.date}>{fmtDate(doc.created_at)}</div>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className={s.analysisBadge}>
-                                        <span className={statusClass}>
-                                            {statusText}
-                                        </span>
+                                        <span className={badgeClass}>{statusText}</span>
                                     </div>
                                 </li>
                             );
@@ -431,171 +544,200 @@ export default function Documents() {
                 )}
             </div>
 
+            {/* ─── Modal ─── */}
             {modalDoc && modalAnalysis && (
                 <div className={s.modalBackdrop} onClick={closeModal}>
-                    <div
-                        className={s.modal}
-                        onClick={(e) => e.stopPropagation()}
-                    >
+                    <div className={s.modal} onClick={(e) => e.stopPropagation()}>
+
+                        {/* header */}
                         <div className={s.modalHeader}>
                             <div>
-                                <h2 className={s.modalTitle}>
-                                    Аналитика по документу
-                                </h2>
+                                <h2 className={s.modalTitle}>Аналитика по документу</h2>
                                 <div className={s.modalSub}>
-                                    {modalDoc.original_name} · сторона:{" "}
-                                    {modalAnalysis.selected_party || "не указана"}
+                                    {modalDoc.original_name}
+                                    {modalAnalysis.selected_party
+                                        ? ` · сторона: ${modalAnalysis.selected_party}`
+                                        : ""}
                                 </div>
                             </div>
-                            <button
-                                className={s.modalClose}
-                                onClick={closeModal}
-                            >
+                            <button className={s.modalClose} onClick={closeModal} aria-label="Закрыть">
                                 ×
                             </button>
                         </div>
 
-                        {modalErr && (
-                            <div className={s.alert} style={{ marginBottom: 8 }}>
-                                {modalErr}
-                            </div>
-                        )}
-
-                        {modalBusy && (
-                            <div className={s.muted} style={{ marginBottom: 8 }}>
-                                Обновляем доступ…
-                            </div>
-                        )}
+                        {modalErr && <div className={s.alert}>{modalErr}</div>}
+                        {modalBusy && <div className={s.modalBusy}>Обновляем доступ…</div>}
 
                         <div className={s.modalBody}>
+
+                            {/* Score hero */}
+                            {modalAnalysis.danger_score != null && (
+                                <div className={s.scoreHero}>
+                                    <div className={s.scoreHeroTop}>
+                                        <div className={s.scoreBlock}>
+                                            <div className={[s.scoreNumber, scoreColor(modalAnalysis.danger_score)].join(" ")}>
+                                                {modalAnalysis.danger_score}
+                                            </div>
+                                            <div className={s.scoreNumLabel}>из 100 — безопасность</div>
+                                        </div>
+                                        <div className={s.scoreRight}>
+                                            <h3 className={s.scoreTitle}>{scoreTitle(modalAnalysis.danger_score)}</h3>
+                                            {modalAnalysis.verdict && (
+                                                <p className={s.scoreVerdict}>{modalAnalysis.verdict}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className={s.scoreBar}>
+                                        <div
+                                            className={[s.scoreBarFill, barClass(modalAnalysis.danger_score)].join(" ")}
+                                            style={{ width: scoreAnimated ? `${modalAnalysis.danger_score}%` : "0%" }}
+                                        />
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Summary */}
                             {modalAnalysis.summary && (
-                                <Block title="Краткое резюме">
-                                    {modalAnalysis.summary}
-                                </Block>
+                                <div className={s.summaryCard}>
+                                    <div className={s.sectionLabel}>О договоре</div>
+                                    <p className={s.summaryText}>{modalAnalysis.summary}</p>
+                                </div>
                             )}
 
-                            {/* Вывод и оценка — всегда видны (v1 и v2) */}
-                            {(modalAnalysis.verdict || modalAnalysis.danger_score != null) && (
-                                <Block title="Вывод и оценка риска">
-                                    <>
-                                        {modalAnalysis.verdict && <p>{modalAnalysis.verdict}</p>}
-                                        {modalAnalysis.danger_score != null && (
-                                            <p className={s.metaLine}>
-                                                Риск: {modalAnalysis.danger_score}/100
-                                            </p>
-                                        )}
-                                    </>
-                                </Block>
-                            )}
-
-                            {/* V2: issues */}
+                            {/* V2: issues accordion */}
                             {modalAnalysis.isV2 ? (
                                 showFull ? (
-                                    modalAnalysis.issues && modalAnalysis.issues.length > 0 ? (
+                                    issues.length > 0 ? (
                                         <div>
-                                            <div className={s.issuesHeader}>
-                                                Найдены проблемные пункты ({modalAnalysis.issues.length})
-                                                <span className={s.issuesMeta}>
-                                                    {modalAnalysis.issues.filter(i=>i.severity==="high").length > 0 && <span className={s.sevHigh}>● Высоких: {modalAnalysis.issues.filter(i=>i.severity==="high").length}</span>}
-                                                    {modalAnalysis.issues.filter(i=>i.severity==="medium").length > 0 && <span className={s.sevMedium}>● Средних: {modalAnalysis.issues.filter(i=>i.severity==="medium").length}</span>}
-                                                    {modalAnalysis.issues.filter(i=>i.severity==="low").length > 0 && <span className={s.sevLow}>● Низких: {modalAnalysis.issues.filter(i=>i.severity==="low").length}</span>}
+                                            <div className={s.issuesHeadRow}>
+                                                <span className={s.issuesCount}>
+                                                    {issues.length}{" "}
+                                                    {issues.length === 1 ? "риск" : issues.length < 5 ? "риска" : "рисков"}
                                                 </span>
+                                                <div className={s.severityPills}>
+                                                    {highCount > 0 && <span className={[s.pill, s.pillHigh].join(" ")}>{highCount} критических</span>}
+                                                    {medCount  > 0 && <span className={[s.pill, s.pillMedium].join(" ")}>{medCount} средних</span>}
+                                                    {lowCount  > 0 && <span className={[s.pill, s.pillLow].join(" ")}>{lowCount} незначительных</span>}
+                                                </div>
                                             </div>
-                                            <div className={s.issuesList}>
-                                                {modalAnalysis.issues.map((issue, idx) => {
-                                                    const sev = getSeverityInfo(issue.severity);
-                                                    return (
-                                                        <div key={idx} className={`${s.issueCard} ${s[`sev_${issue.severity}`]}`}>
-                                                            <div className={s.issueCardHead}>
-                                                                <span className={s.issueClause}>{issue.clause}</span>
-                                                                <span className={s.issueProblem}>{issue.problem}</span>
-                                                                <span className={s.issueSevBadge} style={{color: sev.color}}>{sev.label}</span>
-                                                            </div>
-                                                            {issue.text && (
-                                                                <blockquote className={s.issueQuote}>«{issue.text}»</blockquote>
-                                                            )}
-                                                            {issue.risk && <p className={s.issueField}><span className={s.issueFieldLabel}>Что может случиться</span>{issue.risk}</p>}
-                                                            {issue.why && <p className={s.issueField}><span className={s.issueFieldLabel}>Почему это плохо</span>{issue.why}</p>}
-                                                            {issue.fix && <p className={s.issueField}><span className={s.issueFieldLabel}>Как исправить</span>{issue.fix}</p>}
-                                                        </div>
-                                                    );
-                                                })}
+
+                                            {tabs.length > 2 && (
+                                                <div className={s.filterTabs}>
+                                                    {tabs.map(tab => (
+                                                        <button
+                                                            key={tab.id}
+                                                            type="button"
+                                                            className={[s.filterTab, activeFilter === tab.id ? s.filterTabActive : ""].join(" ")}
+                                                            onClick={() => setActiveFilter(tab.id)}
+                                                        >
+                                                            {tab.label}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <div className={s.issueList}>
+                                                {filteredIssues.map((issue, idx) => (
+                                                    <IssueCard
+                                                        key={`${activeFilter}-${idx}`}
+                                                        issue={issue}
+                                                        defaultOpen={issue.severity === "high"}
+                                                    />
+                                                ))}
                                             </div>
                                         </div>
                                     ) : (
-                                        <Block title="Анализ рисков">
-                                            Договор не содержит явных проблемных пунктов.
-                                        </Block>
+                                        <div className={s.summaryCard}>
+                                            <div className={s.sectionLabel}>Анализ рисков</div>
+                                            <p className={s.summaryText}>
+                                                Договор не содержит явных проблемных пунктов.
+                                            </p>
+                                        </div>
                                     )
                                 ) : (
-                                    <Block title="Проблемные пункты" blurred>
-                                        Детальный разбор пунктов договора доступен после разблокировки.
-                                    </Block>
+                                    <div className={[s.block, s.blurred].join(" ")}>
+                                        <div className={s.blockTitle}>Проблемные пункты</div>
+                                        <div className={s.blockBody}>
+                                            Детальный разбор пунктов договора доступен после разблокировки.
+                                        </div>
+                                        <div className={s.blurOverlay}>Доступно после разблокировки</div>
+                                    </div>
                                 )
                             ) : (
                                 /* V1: flat fields */
                                 <>
                                     {modalAnalysis.key_terms && (
-                                        <Block title="Ключевые условия">
+                                        <V1Block title="Ключевые условия">
                                             {modalAnalysis.key_terms}
-                                        </Block>
+                                        </V1Block>
                                     )}
-                                    <Block title="Риски и уязвимости" blurred={!showFull}>
+                                    <V1Block title="Риски и уязвимости" locked={!showFull}>
                                         {showFull ? modalAnalysis.risks : "Риски доступны после разблокировки анализа."}
-                                    </Block>
-                                    <Block title="Неоднозначные формулировки" blurred={!showFull}>
+                                    </V1Block>
+                                    <V1Block title="Неоднозначные формулировки" locked={!showFull}>
                                         {showFull ? modalAnalysis.ambiguities : "Полный перечень доступен после разблокировки."}
-                                    </Block>
-                                    <Block title="Что стоит исправить" blurred={!showFull}>
-                                        {showFull ? modalAnalysis.fixes : "Рекомендации по доработке доступны после разблокировки анализа."}
-                                    </Block>
-                                    <Block title="Вопросы к контрагенту" blurred={!showFull}>
+                                    </V1Block>
+                                    <V1Block title="Что стоит исправить" locked={!showFull}>
+                                        {showFull ? modalAnalysis.fixes : "Рекомендации по доработке доступны после разблокировки."}
+                                    </V1Block>
+                                    <V1Block title="Вопросы к контрагенту" locked={!showFull}>
                                         {showFull ? modalAnalysis.questions : "Список уточняющих вопросов доступен после разблокировки."}
-                                    </Block>
+                                    </V1Block>
                                 </>
                             )}
                         </div>
 
+                        {/* footer */}
                         <div className={s.modalFooter}>
                             {showFull ? (
                                 <>
                                     <button
-                                        className={s.primary}
+                                        className={copied ? [s.btnGhost, s.btnGhostDone].join(" ") : s.btnGhost}
                                         onClick={handleCopy}
                                         disabled={modalBusy}
                                     >
-                                        {copied ? "Скопировано" : "Скопировать"}
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                        </svg>
+                                        {copied ? "Скопировано!" : "Копировать"}
                                     </button>
                                     <button
-                                        className={s.secondary}
+                                        className={s.btnGhost}
                                         onClick={handleDownload}
                                         disabled={modalBusy}
                                     >
-                                        Скачать
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                            <polyline points="7 10 12 15 17 10" />
+                                            <line x1="12" y1="15" x2="12" y2="3" />
+                                        </svg>
+                                        Скачать .docx
                                     </button>
                                 </>
                             ) : (
-                                <>
-                                    {canUnlock ? (
-                                        <button
-                                            className={s.primary}
-                                            onClick={handleUnlock}
-                                            disabled={modalBusy}
-                                        >
-                                            Разблокировать за 1 запрос
-                                            {typeof credits === "number"
-                                                ? ` (осталось: ${credits})`
-                                                : ""}
-                                        </button>
-                                    ) : (
-                                        <div className={s.muted}>
-                                            Недостаточно прав для разблокировки.
-                                            Оформите подписку или пополните
-                                            запросы на странице{" "}
-                                            <a href="/billing">биллинга</a>.
-                                        </div>
-                                    )}
-                                </>
+                                canUnlock ? (
+                                    <button
+                                        className={s.btnPrimary}
+                                        onClick={handleUnlock}
+                                        disabled={modalBusy}
+                                    >
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                                            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                                            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                        </svg>
+                                        Разблокировать за 1 запрос
+                                        {typeof credits === "number" ? ` (осталось: ${credits})` : ""}
+                                    </button>
+                                ) : (
+                                    <div className={s.noAccessMsg}>
+                                        Недостаточно прав для разблокировки.{" "}
+                                        <a href="/billing">Оформите подписку или пополните запросы</a>.
+                                    </div>
+                                )
                             )}
                         </div>
                     </div>
@@ -605,21 +747,24 @@ export default function Documents() {
     );
 }
 
-function Block({ title, children, blurred = false }) {
+// ─── V1 block ──────────────────────────────────────────────────
+function V1Block({ title, children, locked = false }) {
     return (
-        <div className={s.block}>
+        <div className={locked ? [s.block, s.blurred].join(" ") : s.block}>
             <div className={s.blockTitle}>{title}</div>
-            <div className={`${s.blockBody} ${blurred ? s.blurred : ""}`}>
+            <div className={s.blockBody}>
                 {typeof children === "string"
-                    ? children.split("\n").map((line, i) => (
-                        <p key={i}>{line}</p>
-                    ))
+                    ? children.split("\n").map((line, i) => <p key={i}>{line}</p>)
                     : children}
             </div>
+            {locked && (
+                <div className={s.blurOverlay}>Доступно после разблокировки анализа</div>
+            )}
         </div>
     );
 }
 
+// ─── Helpers ──────────────────────────────────────────────────
 function parseErr(e) {
     try {
         const t = e?.message || "";
@@ -637,7 +782,10 @@ function fmtDate(iso) {
     try {
         const d = new Date(iso);
         if (Number.isNaN(d.getTime())) return "";
-        return d.toLocaleString();
+        return d.toLocaleString("ru-RU", {
+            day: "2-digit", month: "2-digit", year: "numeric",
+            hour: "2-digit", minute: "2-digit",
+        });
     } catch {
         return "";
     }

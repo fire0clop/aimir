@@ -1,34 +1,26 @@
-/* global google */
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
     registerStart,
     registerConfirm,
     resendVerification,
-    loginWithGoogle,
-    loginWithTelegram,
 } from "../api/users";
 import { useAuth } from "../context/AuthContext";
+import Mascot from "../components/Mascot";
 import styles from "./Register.module.css";
-
-import bgUrl from "../assets/images/bg-auth.png";
-import logoUrl from "../assets/images/logo.png";
-
-const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
-const TELEGRAM_BOT_USERNAME = process.env.REACT_APP_TELEGRAM_BOT_USERNAME;
 
 /** Универсальное текстовое поле */
 function InputField({
-                        label,
-                        type = "text",
-                        value,
-                        onChange,
-                        placeholder,
-                        hint,
-                        error,
-                        withEye = false,
-                        name,
-                    }) {
+    label,
+    type = "text",
+    value,
+    onChange,
+    placeholder,
+    hint,
+    error,
+    withEye = false,
+    name,
+}) {
     const [show, setShow] = useState(false);
     const effectiveType = withEye ? (show ? "text" : "password") : type;
 
@@ -40,7 +32,7 @@ function InputField({
                 </label>
             )}
 
-            <div className={`${styles.control} ${error ? styles.controlError : ""}`}>
+            <div className={styles.control}>
                 <input
                     id={name}
                     name={name}
@@ -64,15 +56,15 @@ function InputField({
                         title={show ? "Скрыть пароль" : "Показать пароль"}
                     >
                         {show ? (
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C5 20 1 12 1 12a21.8 21.8 0 0 1 6.06-7.94"></path>
-                                <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-3.37 4.18"></path>
-                                <line x1="1" y1="1" x2="23" y2="23"></line>
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C5 20 1 12 1 12a21.8 21.8 0 0 1 6.06-7.94" />
+                                <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-3.37 4.18" />
+                                <line x1="1" y1="1" x2="23" y2="23" />
                             </svg>
                         ) : (
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
-                                <circle cx="12" cy="12" r="3"></circle>
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+                                <circle cx="12" cy="12" r="3" />
                             </svg>
                         )}
                     </button>
@@ -106,15 +98,6 @@ export default function Register() {
     const [resendCd, setResendCd] = useState(60);
     const [loading, setLoading] = useState(false);
 
-    const [googleLoading, setGoogleLoading] = useState(false);
-    const [googleInitError, setGoogleInitError] = useState("");
-
-    const [telegramLoading, setTelegramLoading] = useState(false);
-    const [telegramInitError, setTelegramInitError] = useState("");
-
-    const googleBtnRef = useRef(null);
-    const telegramBtnRef = useRef(null);
-
     const nav = useNavigate();
     const { refreshUser } = useAuth();
 
@@ -124,137 +107,10 @@ export default function Register() {
         return () => clearTimeout(t);
     }, [showModal, resendCd]);
 
-    // втащим email из localStorage, если уже сохраняли
     useEffect(() => {
         const last = localStorage.getItem("last_email");
         if (last) setEmail(last);
     }, []);
-
-    // --- инициализация Google-кнопки (как на Login) ---
-    useEffect(() => {
-        if (!GOOGLE_CLIENT_ID) {
-            setGoogleInitError("Google client ID не настроен");
-            return;
-        }
-
-        function initGoogle() {
-            try {
-                if (!window.google || !googleBtnRef.current) return;
-
-                window.google.accounts.id.initialize({
-                    client_id: GOOGLE_CLIENT_ID,
-                    callback: handleCredentialResponse,
-                });
-
-                window.google.accounts.id.renderButton(googleBtnRef.current, {
-                    type: "standard",
-                    theme: "outline",
-                    size: "large",
-                    text: "signup_with",
-                    shape: "pill",
-                    logo_alignment: "left",
-                });
-            } catch (e) {
-                console.error(e);
-                setGoogleInitError("Не удалось инициализировать Google вход");
-            }
-        }
-
-        const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-        if (!existing) {
-            const script = document.createElement("script");
-            script.src = "https://accounts.google.com/gsi/client";
-            script.async = true;
-            script.defer = true;
-            script.onload = initGoogle;
-            script.onerror = () => setGoogleInitError("Не удалось загрузить скрипт Google");
-            document.body.appendChild(script);
-        } else {
-            if (window.google) initGoogle();
-            else existing.addEventListener("load", initGoogle);
-        }
-
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // --- инициализация Telegram Login Widget (как на Login) ---
-    useEffect(() => {
-        if (!TELEGRAM_BOT_USERNAME) {
-            setTelegramInitError("Telegram бот не настроен");
-            return;
-        }
-
-        // глобальный callback, который вызывается виджетом Telegram после успешного логина/регистрации
-        window.onTelegramAuth = async function (user) {
-            console.log("🔥 Telegram onAuth payload:", user);
-            try {
-                setErrors({ email: "", pwd: "", pwd2: "", common: "" });
-                setTelegramLoading(true);
-                // user = { id, first_name, last_name?, username?, photo_url?, auth_date, hash }
-                await loginWithTelegram(user);
-                await refreshUser();
-                nav("/billing");
-            } catch (err) {
-                const msg = parseErr(err);
-                setErrors((prev) => ({
-                    ...prev,
-                    common: msg || "Не удалось войти через Telegram",
-                }));
-            } finally {
-                setTelegramLoading(false);
-            }
-        };
-
-        function renderTelegramButton() {
-            if (!telegramBtnRef.current) return;
-
-            // очищаем контейнер на всякий случай (горячая перезагрузка и т.п.)
-            telegramBtnRef.current.innerHTML = "";
-
-            const script = document.createElement("script");
-            script.src = "https://telegram.org/js/telegram-widget.js?22";
-            script.async = true;
-            script.setAttribute("data-telegram-login", TELEGRAM_BOT_USERNAME);
-            script.setAttribute("data-size", "large");
-            script.setAttribute("data-userpic", "false");
-            script.setAttribute("data-onauth", "onTelegramAuth(user)");
-            script.setAttribute("data-request-access", "write");
-            telegramBtnRef.current.appendChild(script);
-        }
-
-        renderTelegramButton();
-
-        return () => {
-            try {
-                // чистим глобальную функцию при размонтировании
-                // eslint-disable-next-line no-undef
-                delete window.onTelegramAuth;
-            } catch (_) {}
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    async function handleCredentialResponse(response) {
-        try {
-            setErrors({ email: "", pwd: "", pwd2: "", common: "" });
-            setGoogleLoading(true);
-
-            const idToken = response?.credential;
-            if (!idToken) {
-                setErrors((p) => ({ ...p, common: "Не удалось получить токен Google" }));
-                return;
-            }
-
-            await loginWithGoogle(idToken);
-            await refreshUser();
-            nav("/billing");
-        } catch (err) {
-            const msg = parseErr(err);
-            setErrors((p) => ({ ...p, common: msg || "Не удалось войти через Google" }));
-        } finally {
-            setGoogleLoading(false);
-        }
-    }
 
     const validate = () => {
         const e = { email: "", pwd: "", pwd2: "", common: "" };
@@ -309,7 +165,7 @@ export default function Register() {
         try {
             setLoading(true);
             await registerConfirm({ email: email.trim(), code: six });
-            await refreshUser();                   // сразу подтянем пользователя в шапку
+            await refreshUser();
             setShowModal(false);
             nav("/billing");
         } catch (e) {
@@ -338,23 +194,18 @@ export default function Register() {
     };
 
     return (
-        <div className={styles.page} style={{ backgroundImage: `url(${bgUrl})` }}>
+        <div className={styles.page}>
+            <div className={styles.layout}>
+            <div className={styles.cardWrap}>
+            <Link to="/" className={styles.brand} aria-label="AiMIR — на главную">
+                <span className={styles.logoMark} aria-hidden="true">
+                    <span className={styles.logoEye} />
+                </span>
+                <span className={styles.brandName}>Ai<i>MIR</i></span>
+            </Link>
             <main className={styles.card} role="main">
-                <div className={styles.top}>
-                    <Link to="/login" className={styles.back}>
-                        <span className={styles.arr}>←</span> На главную
-                    </Link>
-                </div>
-
-                <header className={styles.header}>
-                    <img src={logoUrl} alt="Aimir" className={styles.logo} />
-                    <div><h1 className={styles.title}>Создать аккаунт</h1></div>
-                </header>
-
-                <nav className={styles.tabs} aria-label="Переключение форм">
-                    <Link to="/login" className={styles.tab}>Вход</Link>
-                    <span className={`${styles.tab} ${styles.tabActive}`}>Регистрация</span>
-                </nav>
+                <h1 className={styles.cardTitle}>Регистрация</h1>
+                <p className={styles.cardSubtitle}>Создайте аккаунт: e-mail и пароль</p>
 
                 <form className={styles.form} onSubmit={onSubmit} noValidate>
                     <InputField
@@ -406,39 +257,28 @@ export default function Register() {
                     </label>
 
                     {errors.common && <div className={styles.alert}>{errors.common}</div>}
-                    {googleInitError && <div className={styles.alert}>{googleInitError}</div>}
-                    {telegramInitError && <div className={styles.alert}>{telegramInitError}</div>}
 
                     <button className={styles.primary} type="submit" disabled={loading}>
                         {loading ? "Отправляем..." : "Зарегистрироваться"}
                     </button>
-
-                    <div className={styles.divider}>
-                        <span>или</span>
-                    </div>
-
-                    {/* Кнопка Google (рендерится скриптом Google внутрь этого div) */}
-                    <div className={styles.googleStub}>
-                        <div ref={googleBtnRef} />
-                        {googleLoading && (
-                            <div className={styles.googleTextSmall}>
-                                Регистрируем через Google...
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Кнопка Telegram (рендерится Telegram Login Widget внутрь этого div) */}
-                    <div className={styles.telegramStub}>
-                        <div ref={telegramBtnRef} />
-                        {telegramLoading && (
-                            <div className={styles.googleTextSmall}>
-                                Регистрируем через Telegram...
-                            </div>
-                        )}
-                    </div>
-
                 </form>
+
+                <div className={styles.switchLink}>
+                    Уже есть аккаунт? <Link to="/login">Войти</Link>
+                </div>
             </main>
+            <Link to="/" className={styles.backLink}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5" />
+                    <path d="M12 19l-7-7 7-7" />
+                </svg>
+                На главную
+            </Link>
+            </div>
+            <aside className={styles.mascotCol} aria-hidden="true">
+                <Mascot bubble="Привет! Создадим аккаунт — это займёт минуту" size={260} />
+            </aside>
+            </div>
 
             {showModal && (
                 <div className={styles.modalBackdrop} role="dialog" aria-modal="true">
@@ -460,7 +300,7 @@ export default function Register() {
 
                         <div className={styles.modalBody}>
                             <input
-                                className={`${styles.codeInput} ${codeErr ? styles.controlError : ""}`}
+                                className={styles.codeInput}
                                 inputMode="numeric"
                                 pattern="\d*"
                                 maxLength={6}
@@ -470,7 +310,7 @@ export default function Register() {
                                 autoFocus
                             />
 
-                            {codeErr && <div className={styles.msgError}>{codeErr}</div>}
+                            {codeErr && <div className={styles.alert}>{codeErr}</div>}
                             {infoMsg && <div className={styles.info}>{infoMsg}</div>}
 
                             <button
@@ -481,14 +321,16 @@ export default function Register() {
                                 {loading ? "Проверяем..." : "Подтвердить"}
                             </button>
 
-                            <button
-                                type="button"
-                                className={styles.linkBtn}
-                                onClick={onResend}
-                                disabled={resendCd > 0 || loading}
-                            >
-                                {resendCd > 0 ? `Отправить снова (${resendCd}s)` : "Отправить код снова"}
-                            </button>
+                            <div className={styles.centerRow}>
+                                <button
+                                    type="button"
+                                    className={styles.linkBtn}
+                                    onClick={onResend}
+                                    disabled={resendCd > 0 || loading}
+                                >
+                                    {resendCd > 0 ? `Отправить снова (${resendCd}s)` : "Отправить код снова"}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

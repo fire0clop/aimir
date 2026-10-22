@@ -1,5 +1,17 @@
 // src/api/http.js
-const API = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+const API = process.env.REACT_APP_API_URL || "/api";
+
+const NETWORK_ERROR_MESSAGE = "Нет соединения с сервером. Проверьте интернет и попробуйте ещё раз.";
+
+// fetch, который превращает сетевой сбой (TypeError: Failed to fetch)
+// в понятное пользователю сообщение
+async function safeFetch(url, options) {
+    try {
+        return await fetch(url, options);
+    } catch {
+        throw new Error(NETWORK_ERROR_MESSAGE);
+    }
+}
 
 let _tokens = null;
 
@@ -28,6 +40,32 @@ function clearTokens() {
     setTokens(null);
 }
 
+// single-flight: параллельные 401 не должны запускать несколько рефрешей —
+// иначе при ротации refresh-токена второй запрос разлогинит пользователя
+let _refreshPromise = null;
+
+async function refreshOnce() {
+    if (!_refreshPromise) {
+        _refreshPromise = (async () => {
+            const rr = await safeFetch(API + "/users/refresh", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ refresh_token: getTokens()?.refresh_token }),
+            });
+            if (!rr.ok) {
+                clearTokens();
+                return null;
+            }
+            const newTokens = await rr.json();
+            setTokens(newTokens);
+            return newTokens;
+        })().finally(() => {
+            _refreshPromise = null;
+        });
+    }
+    return _refreshPromise;
+}
+
 async function request(path, options = {}, retry = true) {
     const headers = new Headers(options.headers || {});
     const t = getTokens();
@@ -37,25 +75,19 @@ async function request(path, options = {}, retry = true) {
         headers.set("Content-Type", "application/json");
     }
 
-    const res = await fetch(API + path, { ...options, headers });
+    const res = await safeFetch(API + path, { ...options, headers });
 
     // нет 401 или нет попытки повтора — отдаем ответ как есть
     if (res.status !== 401 || !retry || !getTokens()?.refresh_token) return res;
 
-    // пробуем рефреш
-    const rr = await fetch(API + "/users/refresh", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refresh_token: getTokens()?.refresh_token }),
-    });
-
-    if (!rr.ok) {
-        clearTokens();
-        return res; // вернем исходный 401
+    // пробуем рефреш (общий для всех параллельных запросов)
+    let newTokens = null;
+    try {
+        newTokens = await refreshOnce();
+    } catch {
+        return res; // сетевой сбой рефреша — вернем исходный 401, токены не трогаем
     }
-
-    const newTokens = await rr.json();
-    setTokens(newTokens);
+    if (!newTokens) return res; // рефреш отклонён — токены уже очищены
 
     // повтор запроса с новым access
     const headers2 = new Headers(options.headers || {});
@@ -64,7 +96,7 @@ async function request(path, options = {}, retry = true) {
         headers2.set("Content-Type", "application/json");
     }
 
-    return fetch(API + path, { ...options, headers: headers2 });
+    return safeFetch(API + path, { ...options, headers: headers2 });
 }
 
 export const http = {

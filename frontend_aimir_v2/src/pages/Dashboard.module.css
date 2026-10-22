@@ -1,0 +1,605 @@
+/* ============================================================
+   AiMIR — админ-дашборд, стиль «Pastel Sky»
+   Токены см. в src/styles.css (:root)
+   ============================================================ */
+
+.page {
+    max-width: 1080px;
+    margin: 40px auto 72px;
+    padding: 0 20px;
+    font-family: var(--font-ui);
+    color: var(--ink);
+}
+
+.pageHead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+
+.pageTitle {
+    margin: 0;
+    font-size: clamp(26px, 3.4vw, 34px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+}
+
+.errorText {
+    color: var(--risk-hi);
+    font-weight: 600;
+    margin-top: 8px;
+}
+
+.mutedText {
+    color: var(--muted);
+    font-size: 14px;
+}
+
+/* ---------- кнопки ---------- */
+.btnPeach {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--font-ui);
+    font-weight: 700;
+    font-size: 14px;
+    color: #fff;
+    border-radius: 999px;
+    padding: 10px 20px;
+    background: linear-gradient(160deg, var(--peach), var(--peach-deep));
+    box-shadow: 0 14px 30px -12px rgba(229, 138, 96, 0.65);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.btnPeach:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 18px 36px -12px rgba(229, 138, 96, 0.75);
+}
+.btnPeach:disabled { opacity: 0.6; cursor: default; }
+
+.btnPeachSm {
+    composes: btnPeach;
+    padding: 6px 14px;
+    font-size: 13px;
+}
+
+.btnGhost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(124, 135, 152, 0.35);
+    cursor: pointer;
+    font-family: var(--font-ui);
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--ink-soft);
+    border-radius: 999px;
+    padding: 8px 18px;
+    background: rgba(255, 255, 255, 0.7);
+    transition: border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+.btnGhost:hover:not(:disabled) {
+    border-color: var(--peach);
+    color: var(--peach-deep);
+    transform: translateY(-1px);
+}
+
+/* мелкие кнопки в карточках отзывов */
+.btnXS {
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 4px 11px;
+    font-family: var(--font-ui);
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s ease, filter 0.15s ease;
+}
+.btnXS:hover { transform: translateY(-1px); filter: brightness(1.05); }
+
+.btnXSPeach {
+    composes: btnXS;
+    background: linear-gradient(160deg, var(--peach), var(--peach-deep));
+    color: #fff;
+}
+.btnXSGreen {
+    composes: btnXS;
+    background: var(--ok);
+    color: #fff;
+}
+.btnXSGray {
+    composes: btnXS;
+    background: var(--risk-low-soft);
+    border-color: var(--risk-low);
+    color: #5c7186;
+}
+.btnXSDanger {
+    composes: btnXS;
+    background: var(--risk-hi);
+    color: #fff;
+}
+
+/* ---------- стеклянные карточки-секции ---------- */
+.card {
+    background: var(--card);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--card-border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--card-shadow);
+    padding: 26px 28px;
+    margin-bottom: 24px;
+}
+
+.cardTitle {
+    margin: 0 0 6px;
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    color: var(--ink);
+}
+
+.cardSub {
+    margin: 0 0 16px;
+    color: var(--ink-soft);
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.innerCard {
+    background: var(--card-solid);
+    border: 1px solid var(--card-border);
+    border-radius: var(--r-md);
+    box-shadow: 0 14px 40px -20px rgba(63, 82, 110, 0.3);
+    padding: 18px 20px;
+}
+
+.loadingInline {
+    margin-left: 10px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+}
+
+/* ---------- таблицы ---------- */
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+.table th {
+    padding: 8px 6px;
+    border-bottom: 1px solid rgba(124, 135, 152, 0.25);
+    text-align: left;
+    white-space: nowrap;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--muted);
+}
+.table td {
+    padding: 7px 6px;
+    border-bottom: 1px solid rgba(124, 135, 152, 0.14);
+    color: var(--ink-soft);
+}
+.right { text-align: right !important; }
+.center { text-align: center !important; }
+.mono {
+    font-variant-numeric: tabular-nums;
+    font-size: 12.5px;
+}
+
+/* ---------- KPI-карточки выручки ---------- */
+.kpiGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin-top: 12px;
+}
+.kpi {
+    background: var(--card-solid);
+    border: 1px solid var(--card-border);
+    border-radius: var(--r-md);
+    box-shadow: 0 14px 40px -20px rgba(63, 82, 110, 0.3);
+    padding: 16px 18px;
+    transition: transform 0.2s ease;
+}
+.kpi:hover { transform: translateY(-2px); }
+.kpiAccent {
+    composes: kpi;
+    background: var(--peach-soft);
+    border-color: rgba(229, 138, 96, 0.35);
+}
+.kpiTitle {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--ink-soft);
+}
+.kpiAccent .kpiTitle { color: var(--peach-deep); }
+.kpiValue {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin-top: 6px;
+}
+.kpiNote {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.4;
+}
+
+/* ---------- фильтры / сегментированные кнопки ---------- */
+.subBlock {
+    margin-top: 24px;
+    padding-top: 18px;
+    border-top: 1px solid rgba(124, 135, 152, 0.2);
+}
+.rowHead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+.subTitle {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 800;
+    color: var(--ink);
+}
+.filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    font-size: 13px;
+}
+.segmented {
+    display: inline-flex;
+    border-radius: 999px;
+    border: 1px solid rgba(124, 135, 152, 0.3);
+    background: rgba(255, 255, 255, 0.6);
+    overflow: hidden;
+}
+.segBtn {
+    padding: 5px 12px;
+    border: none;
+    background: transparent;
+    color: var(--ink-soft);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+.segBtn:hover { color: var(--peach-deep); }
+.segBtnActive {
+    composes: segBtn;
+    background: linear-gradient(160deg, var(--peach), var(--peach-deep));
+    color: #fff;
+}
+.segBtnActive:hover { color: #fff; }
+
+.filterForm {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--ink-soft);
+    font-weight: 600;
+}
+.dateInput {
+    font-family: var(--font-ui);
+    font-size: 13px;
+    color: var(--ink);
+    padding: 5px 8px;
+    border-radius: var(--r-sm);
+    border: 1px solid rgba(124, 135, 152, 0.35);
+    background: rgba(255, 255, 255, 0.85);
+}
+.dateInput:focus {
+    outline: none;
+    border-color: var(--peach);
+}
+.customRange {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: var(--ink-soft);
+    font-weight: 600;
+}
+
+/* ---------- график выручки ---------- */
+.chartScroller {
+    position: relative;
+    width: 100%;
+    border-radius: var(--r-md);
+    border: 1px solid var(--card-border);
+    background: var(--card-solid);
+    padding: 12px;
+    box-sizing: border-box;
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.chartTooltip {
+    position: absolute;
+    top: 8px;
+    transform: translateX(-50%);
+    background: #fff;
+    color: var(--ink);
+    padding: 8px 12px;
+    border-radius: var(--r-sm);
+    border: 1px solid rgba(124, 135, 152, 0.25);
+    font-size: 11px;
+    box-shadow: 0 12px 30px -10px rgba(63, 82, 110, 0.35);
+    pointer-events: none;
+    z-index: 10;
+    max-width: 260px;
+    white-space: nowrap;
+}
+.chartTooltipTitle {
+    font-weight: 800;
+    margin-bottom: 4px;
+    color: var(--ink);
+}
+.chartTooltipRow { display: flex; gap: 10px; }
+.chartTooltipLabel { color: var(--muted); }
+.chartTooltipSub { color: var(--peach-deep); font-weight: 700; }
+.chartTooltipCred { color: #5c7186; font-weight: 700; }
+.chartTooltipTotal { font-weight: 800; }
+
+.legendRow {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--ink-soft);
+}
+.legendItems { display: flex; gap: 12px; flex-wrap: wrap; }
+.legendItem { display: inline-flex; align-items: center; gap: 6px; }
+.legendSwatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+.totalsRow {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    align-items: baseline;
+}
+.totalsStrong { color: var(--ink); }
+
+/* ---------- подписки (пончик) ---------- */
+.subsRow {
+    display: flex;
+    justify-content: space-between;
+    gap: 24px;
+    flex-wrap: wrap;
+}
+.subsChartCol {
+    flex: 0 0 260px;
+    min-width: 260px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.subsChartCol .cardTitle,
+.subsChartCol .cardSub { align-self: flex-start; }
+.subsLegendCol {
+    flex: 1 1 260px;
+    min-width: 260px;
+    font-size: 13px;
+}
+.donutWrap {
+    position: relative;
+    width: 220px;
+    height: 220px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.donutCenter {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    pointer-events: none;
+}
+.donutNum {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+}
+.donutLabel {
+    font-size: 11px;
+    color: var(--muted);
+    text-align: center;
+    margin-top: 4px;
+    font-weight: 600;
+}
+.legendCell {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.footnote {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--muted);
+}
+
+/* ---------- отзывы ---------- */
+.reviewsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+    gap: 18px;
+}
+.colTitle {
+    margin: 0 0 10px;
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--ink);
+}
+.scrollBox {
+    max-height: 400px;
+    overflow: auto;
+    padding-right: 4px;
+}
+.reviewCard {
+    border-radius: var(--r-md);
+    border: 1px solid var(--card-border);
+    background: var(--card-solid);
+    box-shadow: 0 10px 28px -18px rgba(63, 82, 110, 0.35);
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+.reviewMeta {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    font-weight: 600;
+}
+.reviewTitle {
+    font-weight: 800;
+    margin-bottom: 4px;
+    color: var(--ink);
+}
+.reviewText {
+    font-size: 13px;
+    color: var(--ink-soft);
+    margin-bottom: 6px;
+    line-height: 1.5;
+}
+.btnRow {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+/* ---------- модалки ---------- */
+.modalBackdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(44, 52, 66, 0.45);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+.modal {
+    background: var(--card-solid);
+    border: 1px solid var(--card-border);
+    border-radius: var(--r-lg);
+    box-shadow: var(--card-shadow);
+    max-width: 520px;
+    width: 100%;
+    padding: 26px 28px;
+}
+.modalWide {
+    composes: modal;
+    max-width: 1600px;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+.modalHead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    gap: 12px;
+}
+.modalTitle {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--ink);
+}
+.modalClose {
+    border: none;
+    background: transparent;
+    font-size: 24px;
+    color: var(--muted);
+    cursor: pointer;
+    line-height: 1;
+}
+.modalClose:hover { color: var(--ink); }
+.modalScroll { flex: 1; overflow: auto; }
+.tableScroll { max-height: 60vh; overflow-y: auto; }
+.modalActions {
+    margin-top: 18px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* ---------- формы ---------- */
+.formCol {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+.label {
+    font-size: 13px;
+    margin-bottom: 4px;
+    color: var(--ink-soft);
+    font-weight: 700;
+}
+.input {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: var(--font-ui);
+    padding: 8px 10px;
+    border-radius: var(--r-sm);
+    border: 1px solid rgba(124, 135, 152, 0.35);
+    background: rgba(255, 255, 255, 0.9);
+    font-size: 14px;
+    color: var(--ink);
+}
+.input:focus {
+    outline: none;
+    border-color: var(--peach);
+}
+
+/* ---------- адаптив ---------- */
+@media (max-width: 700px) {
+    .page { margin-top: 24px; }
+    .card { padding: 20px 18px; border-radius: var(--r-md); }
+    .pageHead { flex-direction: column; align-items: flex-start; }
+    .rowHead { flex-direction: column; align-items: flex-start; }
+    .subsRow { flex-direction: column; }
+    .subsChartCol { flex: 1 1 auto; min-width: 0; width: 100%; }
+    .subsLegendCol { min-width: 0; }
+    .reviewsGrid { grid-template-columns: 1fr; }
+    .kpiGrid { grid-template-columns: 1fr; }
+    .legendRow { flex-direction: column; }
+}

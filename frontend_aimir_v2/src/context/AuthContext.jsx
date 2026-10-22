@@ -14,16 +14,6 @@ export function AuthProvider({ children }) {
         throw new Error(await res.text());
     }, []);
 
-    const refreshTokens = useCallback(async () => {
-        const tk = http.getTokens();
-        if (!tk?.refresh_token) throw new Error("no-refresh");
-        const r = await http.post("/users/refresh", { refresh_token: tk.refresh_token });
-        if (!r.ok) throw new Error(await r.text());
-        const newTokens = await r.json();
-        http.setTokens(newTokens);
-        return newTokens;
-    }, []);
-
     const refreshUser = useCallback(async () => {
         try {
             setLoading(true);
@@ -33,29 +23,23 @@ export function AuthProvider({ children }) {
             // если токена нет вообще — выходим в гостя
             if (!http.getTokens()?.access_token) {
                 setUser(null);
-                setLoading(false);
                 return null;
             }
 
-            try {
-                const me = await fetchMe();
-                setUser(me);
-                return me;
-            } catch {
-                // попробовать рефреш и ещё раз me
-                await refreshTokens();
-                const me2 = await fetchMe();
-                setUser(me2);
-                return me2;
-            }
+            // http.js сам рефрешит токены при 401 и чистит их,
+            // только если сервер явно отклонил refresh
+            const me = await fetchMe();
+            setUser(me);
+            return me;
         } catch {
-            http.clearTokens();
+            // сюда попадаем и при сетевом сбое — токены НЕ трогаем,
+            // чтобы моргнувший интернет не разлогинивал пользователя
             setUser(null);
             return null;
         } finally {
             setLoading(false);
         }
-    }, [fetchMe, refreshTokens]);
+    }, [fetchMe]);
 
     const logout = useCallback(() => {
         http.clearTokens();

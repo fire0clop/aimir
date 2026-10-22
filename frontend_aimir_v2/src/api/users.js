@@ -36,15 +36,6 @@ export async function login({ email, password }) {
     return tokens;
 }
 
-/** Логин через Google: принимает idToken (credential) */
-export async function loginWithGoogle(idToken) {
-    const res = await http.post("/users/login/google", { id_token: idToken });
-    if (!res.ok) throw new Error(await res.text());
-    const tokens = await res.json();
-    http.setTokens(tokens);
-    return tokens;
-}
-
 export async function me() {
     const res = await http.get("/users/me");
     if (!res.ok) throw new Error(await res.text());
@@ -97,22 +88,6 @@ export function logout() {
     http.setTokens(null);
 }
 
-
-/** Логин через Telegram */
-export async function loginWithTelegram(telegramAuthPayload) {
-    const res = await http.post("/users/login/telegram", telegramAuthPayload);
-    if (!res.ok) throw new Error(await res.text());
-    const tokens = await res.json();
-    http.setTokens(tokens);
-    return tokens;
-}
-
-/** Привязка Telegram к текущему аккаунту */
-export async function linkTelegram(telegramAuthPayload) {
-    const res = await http.post("/users/link/telegram", telegramAuthPayload);
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
-}
 
 /** Установить / изменить telegram_id */
 export async function setTelegramId(telegramId) {

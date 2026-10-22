@@ -13,6 +13,7 @@ export default function UserAgreement() {
                     ← На главную
                 </button>
 
+                <article className={styles.sheet}>
                 <div className={styles.card}>
                     <p className={styles.text}>
                         Настоящее Пользовательское соглашение (далее — «Соглашение») является публичной офертой
@@ -137,6 +138,7 @@ export default function UserAgreement() {
                     </p>
                     <p className={styles.update}>Последнее обновление: 29.09.2025</p>
                 </section>
+                </article>
             </div>
         </div>
     );

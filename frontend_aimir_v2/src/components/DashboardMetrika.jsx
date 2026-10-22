@@ -10,6 +10,21 @@ import {
     Tooltip,
     ResponsiveContainer,
 } from "recharts";
+import s from "../pages/Dashboard.module.css";
+
+// цвета графика — палитра «Pastel Sky»
+const COLOR_LINE = "#e58a60"; // персиковый (peach-deep)
+const COLOR_GRID = "rgba(124, 135, 152, 0.2)";
+const COLOR_AXIS_TEXT = "#7c8798";
+
+const tooltipStyle = {
+    background: "#fff",
+    border: "1px solid rgba(124, 135, 152, 0.25)",
+    borderRadius: 12,
+    boxShadow: "0 12px 30px -10px rgba(63, 82, 110, 0.35)",
+    fontSize: 12,
+    color: "#2c3442",
+};
 
 export default function DashboardMetrika() {
     const [startDate, setStartDate] = useState(() => {
@@ -71,43 +86,20 @@ export default function DashboardMetrika() {
     const funnel = data?.funnel || { visits_total: 0, steps: [] };
 
     return (
-        <section style={{ marginTop: 32 }}>
-            <div
-                style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 12,
-                    gap: 16,
-                    flexWrap: "wrap",
-                }}
-            >
-                <h2 style={{ margin: 0, fontSize: 20 }}>
+        <section className={s.card}>
+            <div className={s.rowHead}>
+                <h2 className={s.cardTitle} style={{ marginBottom: 0 }}>
                     Яндекс.Метрика: посещения и цели
                 </h2>
 
-                <form
-                    onSubmit={onSubmit}
-                    style={{
-                        display: "flex",
-                        gap: 8,
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        fontSize: 13,
-                    }}
-                >
+                <form onSubmit={onSubmit} className={s.filterForm}>
                     <label>
                         c{" "}
                         <input
                             type="date"
                             value={startDate}
                             onChange={(e) => setStartDate(e.target.value)}
-                            style={{
-                                fontSize: 13,
-                                padding: "4px 6px",
-                                borderRadius: 6,
-                                border: "1px solid #CBD5E0",
-                            }}
+                            className={s.dateInput}
                         />
                     </label>
                     <label>
@@ -116,67 +108,52 @@ export default function DashboardMetrika() {
                             type="date"
                             value={endDate}
                             onChange={(e) => setEndDate(e.target.value)}
-                            style={{
-                                fontSize: 13,
-                                padding: "4px 6px",
-                                borderRadius: 6,
-                                border: "1px solid #CBD5E0",
-                            }}
+                            className={s.dateInput}
                         />
                     </label>
-                    <button
-                        type="submit"
-                        style={{
-                            padding: "6px 12px",
-                            borderRadius: 999,
-                            border: "1px solid #4C51BF",
-                            background: "#4C51BF",
-                            color: "#fff",
-                            fontSize: 13,
-                            cursor: "pointer",
-                        }}
-                    >
+                    <button type="submit" className={s.btnPeachSm}>
                         Обновить
                     </button>
                 </form>
             </div>
 
-            {loading && <p>Загружаем данные Метрики…</p>}
-            {error && <p style={{ color: "#c53030" }}>{error}</p>}
+            {loading && <p className={s.mutedText}>Загружаем данные Метрики…</p>}
+            {error && <p className={s.errorText}>{error}</p>}
 
             {!loading && !error && data && (
                 <>
                     {/* График посещений */}
-                    <div
-                        style={{
-                            background: "#fff",
-                            borderRadius: 12,
-                            padding: 16,
-                            boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
-                            marginBottom: 20,
-                        }}
-                    >
-                        <h3 style={{ marginTop: 0, fontSize: 16, marginBottom: 8 }}>
+                    <div className={s.innerCard} style={{ marginBottom: 18 }}>
+                        <h3 className={s.subTitle} style={{ marginBottom: 10 }}>
                             Посещения по дням
                         </h3>
                         {visitsSeries.length === 0 ? (
-                            <p style={{ color: "#718096" }}>Нет данных за выбранный период.</p>
+                            <p className={s.mutedText}>Нет данных за выбранный период.</p>
                         ) : (
                             <div style={{ width: "100%", height: 260 }}>
                                 <ResponsiveContainer>
                                     <LineChart data={visitsSeries}>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis dataKey="date" fontSize={11} />
-                                        <YAxis fontSize={11} />
+                                        <CartesianGrid
+                                            strokeDasharray="3 3"
+                                            stroke={COLOR_GRID}
+                                        />
+                                        <XAxis
+                                            dataKey="date"
+                                            fontSize={11}
+                                            stroke={COLOR_AXIS_TEXT}
+                                        />
+                                        <YAxis fontSize={11} stroke={COLOR_AXIS_TEXT} />
                                         <Tooltip
                                             formatter={(value) => [`${value}`, "Посещений"]}
                                             labelFormatter={(label) => `Дата: ${label}`}
+                                            contentStyle={tooltipStyle}
                                         />
                                         <Line
                                             type="monotone"
                                             dataKey="visits"
                                             dot={false}
                                             strokeWidth={2}
+                                            stroke={COLOR_LINE}
                                         />
                                     </LineChart>
                                 </ResponsiveContainer>
@@ -185,65 +162,39 @@ export default function DashboardMetrika() {
                     </div>
 
                     {/* Воронка целей */}
-                    <div
-                        style={{
-                            background: "#fff",
-                            borderRadius: 12,
-                            padding: 16,
-                            boxShadow: "0 2px 6px rgba(0,0,0,0.05)",
-                        }}
-                    >
-                        <h3 style={{ marginTop: 0, fontSize: 16, marginBottom: 8 }}>
+                    <div className={s.innerCard}>
+                        <h3 className={s.subTitle} style={{ marginBottom: 8 }}>
                             Воронка целей
                         </h3>
-                        <p
-                            style={{
-                                marginTop: 0,
-                                marginBottom: 8,
-                                fontSize: 13,
-                                color: "#4a5568",
-                            }}
-                        >
+                        <p className={s.cardSub} style={{ marginBottom: 8 }}>
                             Всего визитов за период:{" "}
                             <strong>{funnel.visits_total}</strong>
                         </p>
 
                         {funnel.steps.length === 0 ? (
-                            <p style={{ color: "#718096" }}>Нет данных по целям.</p>
+                            <p className={s.mutedText}>Нет данных по целям.</p>
                         ) : (
-                            <table
-                                style={{
-                                    width: "100%",
-                                    borderCollapse: "collapse",
-                                    fontSize: 13,
-                                }}
-                            >
+                            <table className={s.table}>
                                 <thead>
                                 <tr>
-                                    <th style={thCell}>Шаг</th>
-                                    <th style={{ ...thCell, textAlign: "right" }}>
-                                        Достигли шага
-                                    </th>
-                                    <th style={{ ...thCell, textAlign: "right" }}>
-                                        Конверсия от предыдущего
-                                    </th>
-                                    <th style={{ ...thCell, textAlign: "right" }}>
-                                        Конверсия от визитов
-                                    </th>
+                                    <th>Шаг</th>
+                                    <th className={s.right}>Достигли шага</th>
+                                    <th className={s.right}>Конверсия от предыдущего</th>
+                                    <th className={s.right}>Конверсия от визитов</th>
                                 </tr>
                                 </thead>
                                 <tbody>
-                                {funnel.steps.map((s) => (
-                                    <tr key={s.key}>
-                                        <td style={tdCell}>{s.name}</td>
-                                        <td style={{ ...tdCell, textAlign: "right" }}>
-                                            {s.count}
+                                {funnel.steps.map((step) => (
+                                    <tr key={step.key}>
+                                        <td>{step.name}</td>
+                                        <td className={`${s.right} ${s.mono}`}>
+                                            {step.count}
                                         </td>
-                                        <td style={{ ...tdCell, textAlign: "right" }}>
-                                            {s.conversion_from_prev.toFixed(1)}%
+                                        <td className={`${s.right} ${s.mono}`}>
+                                            {step.conversion_from_prev.toFixed(1)}%
                                         </td>
-                                        <td style={{ ...tdCell, textAlign: "right" }}>
-                                            {s.conversion_from_first.toFixed(1)}%
+                                        <td className={`${s.right} ${s.mono}`}>
+                                            {step.conversion_from_first.toFixed(1)}%
                                         </td>
                                     </tr>
                                 ))}
@@ -256,15 +207,3 @@ export default function DashboardMetrika() {
         </section>
     );
 }
-
-const thCell = {
-    padding: "6px 6px",
-    borderBottom: "1px solid #e2e8f0",
-    textAlign: "left",
-    whiteSpace: "nowrap",
-};
-
-const tdCell = {
-    padding: "6px 6px",
-    borderBottom: "1px solid #edf2f7",
-};

@@ -1,30 +1,22 @@
 // src/pages/Login.jsx
-/* global google */
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
     login,
-    loginWithGoogle,
     resetStart,
     resetResend,
     resetVerify,
     resetComplete,
-    loginWithTelegram,   // ← добавили
 } from "../api/users";
 import { useAuth } from "../context/AuthContext";
+import Mascot from "../components/Mascot";
 import styles from "./Login.module.css";
-
-import bgUrl from "../assets/images/bg-auth.png";
-import logoUrl from "../assets/images/logo.png";
-
-const GOOGLE_CLIENT_ID = process.env.REACT_APP_GOOGLE_CLIENT_ID;
-const TELEGRAM_BOT_USERNAME = process.env.REACT_APP_TELEGRAM_BOT_USERNAME; // ← username бота, НЕ токен
 
 /** Универсальное поле ввода */
 function InputField({
-                        label, name, type = "text", value, onChange, placeholder,
-                        error, withEye = false,
-                    }) {
+    label, name, type = "text", value, onChange, placeholder,
+    error, withEye = false,
+}) {
     const [show, setShow] = useState(false);
     const effectiveType = withEye ? (show ? "text" : "password") : type;
 
@@ -32,7 +24,7 @@ function InputField({
         <div className={styles.group}>
             {label && <label className={styles.label} htmlFor={name}>{label}</label>}
 
-            <div className={`${styles.control} ${error ? styles.controlError : ""}`}>
+            <div className={styles.control}>
                 <input
                     id={name}
                     name={name}
@@ -51,15 +43,15 @@ function InputField({
                         onClick={() => setShow(s => !s)}
                     >
                         {show ? (
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C5 20 1 12 1 12a21.8 21.8 0 0 1 6.06-7.94"></path>
-                                <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-3.37 4.18"></path>
-                                <line x1="1" y1="1" x2="23" y2="23"></line>
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M17.94 17.94A10.94 10.94 0 0 1 12 20C5 20 1 12 1 12a21.8 21.8 0 0 1 6.06-7.94" />
+                                <path d="M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.8 21.8 0 0 1-3.37 4.18" />
+                                <line x1="1" y1="1" x2="23" y2="23" />
                             </svg>
                         ) : (
-                            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"></path>
-                                <circle cx="12" cy="12" r="3"></circle>
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
+                                <circle cx="12" cy="12" r="3" />
                             </svg>
                         )}
                     </button>
@@ -78,21 +70,12 @@ export default function Login() {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
 
-    const [googleLoading, setGoogleLoading] = useState(false);
-    const [googleInitError, setGoogleInitError] = useState("");
-
-    const [telegramLoading, setTelegramLoading] = useState(false);          // ← новое
-    const [telegramInitError, setTelegramInitError] = useState("");         // ← новое
-
     const nav = useNavigate();
-    const { refreshUser } = useAuth(); // <-- чтобы обновить контекст после логина
-
-    const googleBtnRef = useRef(null);
-    const telegramBtnRef = useRef(null);                                    // ← новое
+    const { refreshUser } = useAuth();
 
     // --- reset modal state ---
     const [showReset, setShowReset] = useState(false);
-    const [step, setStep] = useState(1); // 1-email → 2-code → 3-new pass
+    const [step, setStep] = useState(1);
     const [rEmail, setREmail] = useState("");
     const [rCode, setRCode] = useState("");
     const [rPwd1, setRPwd1] = useState("");
@@ -115,144 +98,19 @@ export default function Login() {
         if (last) setEmail(last);
     }, []);
 
-    // ---- Инициализация Google Identity Services ----
-    useEffect(() => {
-        if (!GOOGLE_CLIENT_ID) {
-            setGoogleInitError("Google client ID не настроен");
-            return;
-        }
-
-        function initGoogle() {
-            try {
-                if (!window.google || !googleBtnRef.current) return;
-
-                window.google.accounts.id.initialize({
-                    client_id: GOOGLE_CLIENT_ID,
-                    callback: handleCredentialResponse,
-                });
-
-                window.google.accounts.id.renderButton(googleBtnRef.current, {
-                    type: "standard",
-                    theme: "outline",
-                    size: "large",
-                    text: "continue_with",
-                    shape: "pill",
-                    logo_alignment: "left",
-                });
-
-                // One Tap можно не вызывать, если не нужно:
-                // window.google.accounts.id.prompt();
-            } catch (e) {
-                console.error(e);
-                setGoogleInitError("Не удалось инициализировать Google вход");
-            }
-        }
-
-        const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
-        if (!existing) {
-            const script = document.createElement("script");
-            script.src = "https://accounts.google.com/gsi/client";
-            script.async = true;
-            script.defer = true;
-            script.onload = initGoogle;
-            script.onerror = () => setGoogleInitError("Не удалось загрузить скрипт Google");
-            document.body.appendChild(script);
-        } else {
-            if (window.google) initGoogle();
-            else existing.addEventListener("load", initGoogle);
-        }
-
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // ---- Инициализация Telegram Login Widget ----
-    useEffect(() => {
-        if (!TELEGRAM_BOT_USERNAME) {
-            setTelegramInitError("Telegram бот не настроен");
-            return;
-        }
-
-        // Глобальный callback, который вызывается виджетом Telegram после успешного логина
-        window.onTelegramAuth = async function (user) {
-            console.log("🔥 Telegram onAuth payload:", user);
-            try {
-                setError("");
-                setTelegramLoading(true);
-                // user = { id, first_name, last_name?, username?, photo_url?, auth_date, hash }
-                await loginWithTelegram(user);
-                await refreshUser();
-                nav("/billing");
-            } catch (err) {
-                const msg = parseErr(err);
-                setError(msg || "Не удалось войти через Telegram");
-            } finally {
-                setTelegramLoading(false);
-            }
-        };
-
-        function renderTelegramButton() {
-            if (!telegramBtnRef.current) return;
-
-            // очищаем контейнер на всякий случай (горячая перезагрузка и т.п.)
-            telegramBtnRef.current.innerHTML = "";
-
-            const script = document.createElement("script");
-            script.src = "https://telegram.org/js/telegram-widget.js?22";
-            script.async = true;
-            script.setAttribute("data-telegram-login", TELEGRAM_BOT_USERNAME);
-            script.setAttribute("data-size", "large");
-            script.setAttribute("data-userpic", "false");
-            script.setAttribute("data-onauth", "onTelegramAuth(user)");
-            script.setAttribute("data-request-access", "write");
-            telegramBtnRef.current.appendChild(script);
-        }
-
-        renderTelegramButton();
-
-        return () => {
-            try {
-                // чистим глобальную функцию при размонтировании
-                // eslint-disable-next-line no-undef
-                delete window.onTelegramAuth;
-            } catch (_) {}
-        };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    async function handleCredentialResponse(response) {
-        try {
-            setError("");
-            setGoogleLoading(true);
-            const idToken = response?.credential;
-            if (!idToken) {
-                setError("Не удалось получить токен Google");
-                return;
-            }
-            await loginWithGoogle(idToken);
-            await refreshUser();
-            nav("/billing");
-        } catch (err) {
-            const msg = parseErr(err);
-            setError(msg || "Не удалось войти через Google");
-        } finally {
-            setGoogleLoading(false);
-        }
-    }
-
     const onSubmit = async (e) => {
         e.preventDefault();
         setError("");
         try {
             setLoading(true);
             await login({ email: email.trim(), password: pwd });
-            await refreshUser();                    // <-- обновляем пользователя в контексте
+            await refreshUser();
             remember
                 ? localStorage.setItem("last_email", email.trim())
                 : localStorage.removeItem("last_email");
             nav("/billing");
         } catch (err) {
             const msg = parseErr(err);
-            // локализуем
             setError(/invalid credentials/i.test(msg) ? "Неверный e-mail или пароль" : msg);
         } finally {
             setLoading(false);
@@ -345,26 +203,21 @@ export default function Login() {
     };
 
     return (
-        <div className={styles.page} style={{ backgroundImage: `url(${bgUrl})` }}>
+        <div className={styles.page}>
+            <div className={styles.layout}>
+            <div className={styles.cardWrap}>
+            <Link to="/" className={styles.brand} aria-label="AiMIR — на главную">
+                <span className={styles.logoMark} aria-hidden="true">
+                    <span className={styles.logoEye} />
+                </span>
+                <span className={styles.brandName}>Ai<i>MIR</i></span>
+            </Link>
             <main className={styles.card} role="main">
-                <div className={styles.top}>
-                    <Link to="/" className={styles.back}>
-                        <span className={styles.arr}>←</span> На главную
-                    </Link>
-                </div>
-
-                <header className={styles.header}>
-                    <img src={logoUrl} alt="Aimir" className={styles.logo} />
-                    <div>
-                        <h1 className={styles.title}>Вход в аккаунт</h1>
-                        <div className={styles.subtitle}>Используйте e-mail, пароль, Google или Telegram</div>
-                    </div>
-                </header>
-
-                <nav className={styles.tabs} aria-label="Переключение форм">
-                    <span className={`${styles.tab} ${styles.tabActive}`}>Вход</span>
-                    <Link to="/register" className={styles.tab}>Регистрация</Link>
-                </nav>
+                <h1 className={styles.cardTitle}>Вход</h1>
+                <p className={styles.cardSubtitle}>
+                    Используйте e-mail и пароль. Если раньше входили через Google —
+                    просто введите свой e-mail, пароль не нужен.
+                </p>
 
                 <form className={styles.form} onSubmit={onSubmit} noValidate>
                     <InputField
@@ -372,7 +225,7 @@ export default function Login() {
                         label="Email"
                         type="email"
                         value={email}
-                        onChange={(e)=>setEmail(e.target.value)}
+                        onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@example.com"
                     />
 
@@ -380,7 +233,7 @@ export default function Login() {
                         name="pwd"
                         label="Пароль"
                         value={pwd}
-                        onChange={(e)=>setPwd(e.target.value)}
+                        onChange={(e) => setPwd(e.target.value)}
                         placeholder="Пароль"
                         withEye
                     />
@@ -389,14 +242,12 @@ export default function Login() {
                         <input
                             type="checkbox"
                             checked={remember}
-                            onChange={(e)=>setRemember(e.target.checked)}
+                            onChange={(e) => setRemember(e.target.checked)}
                         />
                         <span>Запомнить меня</span>
                     </label>
 
                     {error && <div className={styles.alert}>{error}</div>}
-                    {googleInitError && <div className={styles.alert}>{googleInitError}</div>}
-                    {telegramInitError && <div className={styles.alert}>{telegramInitError}</div>}
 
                     <button className={styles.primary} type="submit" disabled={loading}>
                         {loading ? "Входим..." : "Войти"}
@@ -407,32 +258,24 @@ export default function Login() {
                             Забыли пароль?
                         </button>
                     </div>
-
-                    <div className={styles.divider}>
-                        <span>или</span>
-                    </div>
-
-                    {/* Кнопка Google */}
-                    <div className={styles.googleStub}>
-                        <div ref={googleBtnRef} />
-                        {googleLoading && (
-                            <div className={styles.googleTextSmall}>
-                                Входим через Google...
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Кнопка Telegram */}
-                    <div className={styles.telegramStub}>
-                        <div ref={telegramBtnRef} />
-                        {telegramLoading && (
-                            <div className={styles.googleTextSmall}>
-                                Входим через Telegram...
-                            </div>
-                        )}
-                    </div>
                 </form>
+
+                <div className={styles.switchLink}>
+                    Нет аккаунта? <Link to="/register">Зарегистрироваться</Link>
+                </div>
             </main>
+            <Link to="/" className={styles.backLink}>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M19 12H5" />
+                    <path d="M12 19l-7-7 7-7" />
+                </svg>
+                На главную
+            </Link>
+            </div>
+            <aside className={styles.mascotCol} aria-hidden="true">
+                <Mascot bubble="С возвращением! Рад видеть вас снова" size={260} />
+            </aside>
+            </div>
 
             {/* ----- МОДАЛКА СБРОСА ПАРОЛЯ ----- */}
             {showReset && (
@@ -440,23 +283,31 @@ export default function Login() {
                     <div className={styles.modal}>
                         <div className={styles.modalHeader}>
                             <h2 className={styles.modalTitle}>Сброс пароля</h2>
-                            <button className={styles.modalClose} onClick={()=>setShowReset(false)} aria-label="Закрыть">×</button>
+                            <button
+                                className={styles.modalClose}
+                                onClick={() => setShowReset(false)}
+                                aria-label="Закрыть"
+                            >
+                                ×
+                            </button>
                         </div>
 
                         {step === 1 && (
                             <div className={styles.modalBody}>
-                                <p className={styles.modalSubtitle}>Укажите e-mail, на который зарегистрирован аккаунт.</p>
-                                <div className={styles.control}>
+                                <p className={styles.modalSubtitle}>
+                                    Укажите e-mail, на который зарегистрирован аккаунт.
+                                </p>
+                                <div className={styles.group}>
                                     <input
                                         className={styles.input}
                                         type="email"
                                         placeholder="you@example.com"
                                         value={rEmail}
-                                        onChange={(e)=>setREmail(e.target.value)}
+                                        onChange={(e) => setREmail(e.target.value)}
                                         autoFocus
                                     />
                                 </div>
-                                {rErr && <div className={styles.msgError}>{rErr}</div>}
+                                {rErr && <div className={styles.alert}>{rErr}</div>}
                                 {rInfo && <div className={styles.info}>{rInfo}</div>}
                                 <button className={styles.primary} onClick={onResetStart} disabled={rLoading}>
                                     {rLoading ? "Отправляем..." : "Отправить код"}
@@ -466,7 +317,9 @@ export default function Login() {
 
                         {step === 2 && (
                             <div className={styles.modalBody}>
-                                <p className={styles.modalSubtitle}>Мы отправили 6-значный код на <b>{rEmail}</b>.</p>
+                                <p className={styles.modalSubtitle}>
+                                    Мы отправили 6-значный код на <b>{rEmail}</b>.
+                                </p>
                                 <input
                                     className={styles.codeInput}
                                     inputMode="numeric"
@@ -474,10 +327,10 @@ export default function Login() {
                                     maxLength={6}
                                     placeholder="••••••"
                                     value={rCode}
-                                    onChange={(e)=>setRCode(e.target.value.replace(/\D/g, ""))}
+                                    onChange={(e) => setRCode(e.target.value.replace(/\D/g, ""))}
                                     autoFocus
                                 />
-                                {rErr && <div className={styles.msgError}>{rErr}</div>}
+                                {rErr && <div className={styles.alert}>{rErr}</div>}
                                 {rInfo && <div className={styles.info}>{rInfo}</div>}
                                 <button
                                     className={styles.primary}
@@ -486,40 +339,42 @@ export default function Login() {
                                 >
                                     {rLoading ? "Проверяем..." : "Подтвердить код"}
                                 </button>
-                                <button
-                                    type="button"
-                                    className={styles.linkBtn}
-                                    onClick={onResetResend}
-                                    disabled={resendCd > 0 || rLoading}
-                                >
-                                    {resendCd > 0 ? `Отправить снова (${resendCd}s)` : "Отправить код снова"}
-                                </button>
+                                <div className={styles.centerRow}>
+                                    <button
+                                        type="button"
+                                        className={styles.linkBtn}
+                                        onClick={onResetResend}
+                                        disabled={resendCd > 0 || rLoading}
+                                    >
+                                        {resendCd > 0 ? `Отправить снова (${resendCd}s)` : "Отправить код снова"}
+                                    </button>
+                                </div>
                             </div>
                         )}
 
                         {step === 3 && (
                             <div className={styles.modalBody}>
                                 <p className={styles.modalSubtitle}>Задайте новый пароль.</p>
-                                <div className={styles.control}>
+                                <div className={styles.group}>
                                     <input
                                         className={styles.input}
                                         type="password"
                                         placeholder="Новый пароль"
                                         value={rPwd1}
-                                        onChange={(e)=>setRPwd1(e.target.value)}
+                                        onChange={(e) => setRPwd1(e.target.value)}
                                         autoFocus
                                     />
                                 </div>
-                                <div className={styles.control}>
+                                <div className={styles.group}>
                                     <input
                                         className={styles.input}
                                         type="password"
                                         placeholder="Повторите пароль"
                                         value={rPwd2}
-                                        onChange={(e)=>setRPwd2(e.target.value)}
+                                        onChange={(e) => setRPwd2(e.target.value)}
                                     />
                                 </div>
-                                {rErr && <div className={styles.msgError}>{rErr}</div>}
+                                {rErr && <div className={styles.alert}>{rErr}</div>}
                                 {rInfo && <div className={styles.info}>{rInfo}</div>}
                                 <button className={styles.primary} onClick={onResetComplete} disabled={rLoading}>
                                     {rLoading ? "Сохраняем..." : "Сохранить пароль"}

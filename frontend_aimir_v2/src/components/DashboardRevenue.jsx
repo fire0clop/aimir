@@ -4,6 +4,14 @@ import {
     fetchDashboardRevenueTimeseries,
     fetchDashboardRevenueSummary,
 } from "../api/dashboard";
+import s from "../pages/Dashboard.module.css";
+
+// цвета графика — палитра «Pastel Sky»
+const COLOR_SUBSCRIPTION = "#e58a60"; // персиковый (peach-deep)
+const COLOR_CREDITS = "#8aa0b8"; // серо-голубой (risk-low)
+const COLOR_GRID = "rgba(124, 135, 152, 0.2)";
+const COLOR_AXIS = "rgba(124, 135, 152, 0.35)";
+const COLOR_AXIS_TEXT = "#7c8798";
 
 export default function DashboardRevenue({ revenue }) {
     // ---------- сводка (верхние карточки) ----------
@@ -217,45 +225,21 @@ export default function DashboardRevenue({ revenue }) {
 
     // ---------- UI ----------
     return (
-        <section
-            style={{
-                padding: 16,
-                borderRadius: 12,
-                border: "1px solid #e2e8f0",
-                background: "#fff",
-                marginTop: 24,
-            }}
-        >
+        <section className={s.card}>
             {/* Верхний блок — «снимок» состояния по подпискам/балансу */}
-            <h2 style={{ marginBottom: 4, fontSize: 20 }}>
+            <h2 className={s.cardTitle}>
                 Выручка (сводка)
                 {summaryState.loading && (
-                    <span style={{ marginLeft: 8, fontSize: 12, color: "#A0AEC0" }}>
-                        обновляем…
-                    </span>
+                    <span className={s.loadingInline}>обновляем…</span>
                 )}
             </h2>
             {summaryState.error && (
-                <p
-                    style={{
-                        fontSize: 12,
-                        color: "#c53030",
-                        marginTop: 0,
-                        marginBottom: 8,
-                    }}
-                >
+                <p className={s.errorText} style={{ fontSize: 12, marginTop: 0, marginBottom: 8 }}>
                     {summaryState.error}
                 </p>
             )}
 
-            <div
-                style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                    gap: 16,
-                    marginTop: 8,
-                }}
-            >
+            <div className={s.kpiGrid}>
                 <Card title="Подписка на месяц" note="Активные месячные подписки × цена">
                     {fmtMoney(revenueByType.month)} ₽
                 </Card>
@@ -285,51 +269,19 @@ export default function DashboardRevenue({ revenue }) {
                 <Card
                     title="Общий итог (оценка)"
                     note="Активные подписки + суммарный баланс"
-                    purple
+                    accent
                 >
                     {fmtMoney(rev.grand_total_estimated)} ₽
                 </Card>
             </div>
 
             {/* Нижний блок — фактическая выручка по транзакциям с периодом и графиком */}
-            <div
-                style={{
-                    marginTop: 24,
-                    paddingTop: 16,
-                    borderTop: "1px solid #e2e8f0",
-                }}
-            >
-                <div
-                    style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        flexWrap: "wrap",
-                        gap: 8,
-                        marginBottom: 12,
-                    }}
-                >
-                    <h3 style={{ margin: 0, fontSize: 18 }}>
-                        Фактическая выручка по транзакциям
-                    </h3>
+            <div className={s.subBlock}>
+                <div className={s.rowHead}>
+                    <h3 className={s.subTitle}>Фактическая выручка по транзакциям</h3>
 
-                    <div
-                        style={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: 8,
-                            alignItems: "center",
-                            fontSize: 13,
-                        }}
-                    >
-                        <div
-                            style={{
-                                display: "inline-flex",
-                                borderRadius: 999,
-                                border: "1px solid #e2e8f0",
-                                overflow: "hidden",
-                            }}
-                        >
+                    <div className={s.filters}>
+                        <div className={s.segmented}>
                             {[
                                 { id: "7d", label: "7 дней" },
                                 { id: "30d", label: "30 дней" },
@@ -340,29 +292,14 @@ export default function DashboardRevenue({ revenue }) {
                                     key={p.id}
                                     type="button"
                                     onClick={() => setPeriod(p.id)}
-                                    style={{
-                                        padding: "4px 10px",
-                                        border: "none",
-                                        background:
-                                            period === p.id ? "#4C51BF" : "transparent",
-                                        color: period === p.id ? "#fff" : "#4a5568",
-                                        fontSize: 12,
-                                        cursor: "pointer",
-                                    }}
+                                    className={period === p.id ? s.segBtnActive : s.segBtn}
                                 >
                                     {p.label}
                                 </button>
                             ))}
                         </div>
 
-                        <div
-                            style={{
-                                display: "inline-flex",
-                                borderRadius: 999,
-                                border: "1px solid #e2e8f0",
-                                overflow: "hidden",
-                            }}
-                        >
+                        <div className={s.segmented}>
                             {[
                                 { id: "day", label: "По дням" },
                                 { id: "month", label: "По месяцам" },
@@ -371,15 +308,7 @@ export default function DashboardRevenue({ revenue }) {
                                     key={g.id}
                                     type="button"
                                     onClick={() => setGroupBy(g.id)}
-                                    style={{
-                                        padding: "4px 10px",
-                                        border: "none",
-                                        background:
-                                            groupBy === g.id ? "#2D3748" : "transparent",
-                                        color: groupBy === g.id ? "#fff" : "#4a5568",
-                                        fontSize: 12,
-                                        cursor: "pointer",
-                                    }}
+                                    className={groupBy === g.id ? s.segBtnActive : s.segBtn}
                                 >
                                     {g.label}
                                 </button>
@@ -389,27 +318,14 @@ export default function DashboardRevenue({ revenue }) {
                 </div>
 
                 {period === "custom" && (
-                    <div
-                        style={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: 8,
-                            marginBottom: 12,
-                            fontSize: 13,
-                        }}
-                    >
+                    <div className={s.customRange}>
                         <label>
                             c{" "}
                             <input
                                 type="date"
                                 value={customStart}
                                 onChange={(e) => setCustomStart(e.target.value)}
-                                style={{
-                                    padding: "4px 6px",
-                                    borderRadius: 6,
-                                    border: "1px solid #cbd5e0",
-                                    fontSize: 13,
-                                }}
+                                className={s.dateInput}
                             />
                         </label>
                         <label>
@@ -418,46 +334,25 @@ export default function DashboardRevenue({ revenue }) {
                                 type="date"
                                 value={customEnd}
                                 onChange={(e) => setCustomEnd(e.target.value)}
-                                style={{
-                                    padding: "4px 6px",
-                                    borderRadius: 6,
-                                    border: "1px solid #cbd5e0",
-                                    fontSize: 13,
-                                }}
+                                className={s.dateInput}
                             />
                         </label>
-                        <span style={{ color: "#A0AEC0" }}>
+                        <span className={s.mutedText}>
                             Задайте обе даты, чтобы увидеть график
                         </span>
                     </div>
                 )}
 
                 {tsState.loading ? (
-                    <p style={{ fontSize: 14, color: "#4a5568" }}>Загружаем данные…</p>
+                    <p className={s.mutedText}>Загружаем данные…</p>
                 ) : tsState.error ? (
-                    <p style={{ fontSize: 14, color: "#c53030" }}>{tsState.error}</p>
+                    <p className={s.errorText}>{tsState.error}</p>
                 ) : !buckets || buckets.length === 0 ? (
-                    <p style={{ fontSize: 14, color: "#718096" }}>
-                        Нет транзакций за выбранный период.
-                    </p>
+                    <p className={s.mutedText}>Нет транзакций за выбранный период.</p>
                 ) : (
                     <>
                         {/* График */}
-                        <div
-                            ref={chartWrapperRef}
-                            style={{
-                                position: "relative",
-                                width: "100%",
-                                borderRadius: 12,
-                                border: "1px solid #edf2f7",
-                                background:
-                                    "linear-gradient(to bottom, #f7fafc 0, #ffffff 40%, #ffffff 100%)",
-                                padding: 12,
-                                boxSizing: "border-box",
-                                overflowX: "auto",
-                                overflowY: "hidden",
-                            }}
-                        >
+                        <div ref={chartWrapperRef} className={s.chartScroller}>
                             <svg
                                 width={chartWidth}
                                 height={chartHeight + 30}
@@ -475,7 +370,7 @@ export default function DashboardRevenue({ revenue }) {
                                                     x2={chartWidth - 10}
                                                     y1={y}
                                                     y2={y}
-                                                    stroke="#E2E8F0"
+                                                    stroke={COLOR_GRID}
                                                     strokeWidth={idx === 0 ? 0.8 : 0.3}
                                                     strokeDasharray={idx === 0 ? "0" : "4 4"}
                                                 />
@@ -484,7 +379,7 @@ export default function DashboardRevenue({ revenue }) {
                                                         x={36}
                                                         y={y + 3}
                                                         fontSize="9"
-                                                        fill="#A0AEC0"
+                                                        fill={COLOR_AXIS_TEXT}
                                                         textAnchor="end"
                                                     >
                                                         {Math.round(value)}
@@ -500,7 +395,7 @@ export default function DashboardRevenue({ revenue }) {
                                     x2={chartWidth - 10}
                                     y1={10 + chartHeight}
                                     y2={10 + chartHeight}
-                                    stroke="#CBD5E0"
+                                    stroke={COLOR_AXIS}
                                     strokeWidth="0.8"
                                 />
 
@@ -520,7 +415,6 @@ export default function DashboardRevenue({ revenue }) {
                                             40 + slotWidth * idx + slotWidth / 2;
                                         const x = slotCenter - barWidth / 2;
 
-                                        const totalH = (total / maxTotal) * chartHeight;
                                         const subH = (sub / maxTotal) * chartHeight;
                                         const credH = (cred / maxTotal) * chartHeight;
 
@@ -561,7 +455,7 @@ export default function DashboardRevenue({ revenue }) {
                                                         y={credY}
                                                         width={barWidth}
                                                         height={credH}
-                                                        fill="#63B3ED"
+                                                        fill={COLOR_CREDITS}
                                                         opacity="0.9"
                                                         rx={3}
                                                     />
@@ -573,7 +467,7 @@ export default function DashboardRevenue({ revenue }) {
                                                         y={subY}
                                                         width={barWidth}
                                                         height={subH}
-                                                        fill="#9F7AEA"
+                                                        fill={COLOR_SUBSCRIPTION}
                                                         opacity="0.9"
                                                         rx={3}
                                                     />
@@ -600,7 +494,7 @@ export default function DashboardRevenue({ revenue }) {
                                                 x={slotCenter}
                                                 y={10 + chartHeight + 12}
                                                 fontSize="9"
-                                                fill="#718096"
+                                                fill={COLOR_AXIS_TEXT}
                                                 textAnchor="middle"
                                             >
                                                 {label}
@@ -613,48 +507,28 @@ export default function DashboardRevenue({ revenue }) {
                             {/* тултип по наведению */}
                             {hoverInfo && (
                                 <div
-                                    style={{
-                                        position: "absolute",
-                                        top: 8,
-                                        left: hoverInfo.x,
-                                        transform: "translateX(-50%)",
-                                        background: "#1A202C",
-                                        color: "#EDF2F7",
-                                        padding: "6px 10px",
-                                        borderRadius: 8,
-                                        fontSize: 11,
-                                        boxShadow: "0 4px 12px rgba(0,0,0,0.35)",
-                                        pointerEvents: "none",
-                                        zIndex: 10,
-                                        maxWidth: 260,
-                                        whiteSpace: "nowrap",
-                                    }}
+                                    className={s.chartTooltip}
+                                    style={{ left: hoverInfo.x }}
                                 >
-                                    <div
-                                        style={{
-                                            fontWeight: 600,
-                                            marginBottom: 4,
-                                            color: "#E2E8F0",
-                                        }}
-                                    >
+                                    <div className={s.chartTooltipTitle}>
                                         {formatBucketLabel(hoverInfo.bucket)}
                                     </div>
-                                    <div style={{ display: "flex", gap: 8 }}>
+                                    <div className={s.chartTooltipRow}>
                                         <div>
-                                            <div style={{ color: "#A0AEC0" }}>Подписки</div>
-                                            <div style={{ color: "#E9D8FD" }}>
+                                            <div className={s.chartTooltipLabel}>Подписки</div>
+                                            <div className={s.chartTooltipSub}>
                                                 {fmtMoney(hoverInfo.subscription)} ₽
                                             </div>
                                         </div>
                                         <div>
-                                            <div style={{ color: "#A0AEC0" }}>Кредиты</div>
-                                            <div style={{ color: "#BEE3F8" }}>
+                                            <div className={s.chartTooltipLabel}>Кредиты</div>
+                                            <div className={s.chartTooltipCred}>
                                                 {fmtMoney(hoverInfo.credits)} ₽
                                             </div>
                                         </div>
                                         <div>
-                                            <div style={{ color: "#A0AEC0" }}>Итого</div>
-                                            <div style={{ fontWeight: 600 }}>
+                                            <div className={s.chartTooltipLabel}>Итого</div>
+                                            <div className={s.chartTooltipTotal}>
                                                 {fmtMoney(hoverInfo.total)} ₽
                                             </div>
                                         </div>
@@ -664,35 +538,21 @@ export default function DashboardRevenue({ revenue }) {
                         </div>
 
                         {/* Легенда + итоги */}
-                        <div
-                            style={{
-                                display: "flex",
-                                justifyContent: "space-between",
-                                alignItems: "flex-start",
-                                flexWrap: "wrap",
-                                gap: 16,
-                                marginTop: 10,
-                                fontSize: 13,
-                            }}
-                        >
-                            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                                <LegendItem color="#9F7AEA" label="Подписки" />
+                        <div className={s.legendRow}>
+                            <div className={s.legendItems}>
                                 <LegendItem
-                                    color="#63B3ED"
+                                    color={COLOR_SUBSCRIPTION}
+                                    label="Подписки"
+                                />
+                                <LegendItem
+                                    color={COLOR_CREDITS}
                                     label="Кредиты (разовые запросы)"
                                 />
                             </div>
 
                             {totals && (
-                                <div
-                                    style={{
-                                        display: "flex",
-                                        gap: 12,
-                                        flexWrap: "wrap",
-                                        alignItems: "baseline",
-                                    }}
-                                >
-                                    <div style={{ color: "#4a5568" }}>
+                                <div className={s.totalsRow}>
+                                    <div>
                                         Подписки:&nbsp;
                                         <b>
                                             {fmtMoney(
@@ -701,13 +561,13 @@ export default function DashboardRevenue({ revenue }) {
                                             ₽
                                         </b>
                                     </div>
-                                    <div style={{ color: "#4a5568" }}>
+                                    <div>
                                         Кредиты:&nbsp;
                                         <b>
                                             {fmtMoney(totals.by_kind?.credits ?? 0)} ₽
                                         </b>
                                     </div>
-                                    <div style={{ color: "#2D3748" }}>
+                                    <div className={s.totalsStrong}>
                                         Итого:&nbsp;
                                         <b>{fmtMoney(totals.grand_total ?? 0)} ₽</b>
                                     </div>
@@ -721,51 +581,22 @@ export default function DashboardRevenue({ revenue }) {
     );
 }
 
-function Card({ title, note, children, purple = false }) {
+function Card({ title, note, children, accent = false }) {
     return (
-        <div
-            style={{
-                padding: 12,
-                borderRadius: 10,
-                border: purple ? "1px solid #e9d8fd" : "1px solid #edf2f7",
-                background: purple ? "#faf5ff" : "#f7fafc",
-            }}
-        >
-            <div style={{ fontSize: 13, color: purple ? "#553c9a" : "#4a5568" }}>
-                {title}
-            </div>
-            <div style={{ fontSize: 18, fontWeight: 600, marginTop: 4 }}>
-                {children}
-            </div>
-            <div
-                style={{
-                    fontSize: 12,
-                    color: purple ? "#9f7aea" : "#a0aec0",
-                    marginTop: 2,
-                }}
-            >
-                {note}
-            </div>
+        <div className={accent ? s.kpiAccent : s.kpi}>
+            <div className={s.kpiTitle}>{title}</div>
+            <div className={s.kpiValue}>{children}</div>
+            <div className={s.kpiNote}>{note}</div>
         </div>
     );
 }
 
 function LegendItem({ color, label }) {
     return (
-        <div
-            style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-            }}
-        >
+        <div className={s.legendItem}>
             <span
-                style={{
-                    width: 10,
-                    height: 10,
-                    borderRadius: 3,
-                    backgroundColor: color,
-                }}
+                className={s.legendSwatch}
+                style={{ backgroundColor: color }}
             />
             <span>{label}</span>
         </div>
